@@ -1,0 +1,1570 @@
+[
+{
+"line": "Card 4940 9779 2542 6991 and SSN 696-17-9313 on file for Olivia Johnson.",
+"values": [
+{
+"category": "account_number",
+"value": "4940 9779 2542 6991"
+},
+{
+"category": "account_number",
+"value": "696-17-9313"
+},
+{
+"category": "private_person",
+"value": "Olivia Johnson"
+}
+]
+},
+{
+"line": "Patient Aisha Dubois (DOB 22/09/1977) was admitted by Dr. Rossi.",
+"values": [
+{
+"category": "private_person",
+"value": "Aisha Dubois"
+},
+{
+"category": "private_date",
+"value": "22/09/1977"
+}
+]
+},
+{
+"line": "Please contact Ava Garcia at ava.garcia@mail.org or call +1-986-494-3119.",
+"values": [
+{
+"category": "private_person",
+"value": "Ava Garcia"
+},
+{
+"category": "private_email",
+"value": "ava.garcia@mail.org"
+},
+{
+"category": "private_phone",
+"value": "+1-986-494-3119"
+}
+]
+},
+{
+"line": "Stark Industries invoiced Lucas Sato; reply to lucas.sato@university.edu or +1-607-608-7457.",
+"values": [
+{
+"category": "private_person",
+"value": "Lucas Sato"
+},
+{
+"category": "private_email",
+"value": "lucas.sato@university.edu"
+},
+{
+"category": "private_phone",
+"value": "+1-607-608-7457"
+}
+]
+},
+{
+"line": "Stark Industries invoiced Chen Costa; reply to chen.costa@proton.me or +1-908-365-9459.",
+"values": [
+{
+"category": "private_person",
+"value": "Chen Costa"
+},
+{
+"category": "private_email",
+"value": "chen.costa@proton.me"
+},
+{
+"category": "private_phone",
+"value": "+1-908-365-9459"
+}
+]
+},
+{
+"line": "Service token 6f5da2cec255404e4fb440034d6608697a8d41be rotated; SSN 309-71-1031 kept for Lucas.",
+"values": [
+{
+"category": "secret",
+"value": "6f5da2cec255404e4fb440034d6608697a8d41be"
+},
+{
+"category": "account_number",
+"value": "309-71-1031"
+}
+]
+},
+{
+"line": "Charged card 4119 8211 4000 1064 for Diego Johnson on 05/08/1989.",
+"values": [
+{
+"category": "account_number",
+"value": "4119 8211 4000 1064"
+},
+{
+"category": "private_person",
+"value": "Diego Johnson"
+},
+{
+"category": "private_date",
+"value": "05/08/1989"
+}
+]
+},
+{
+"line": "Card 4513 6556 7902 4207 and SSN 465-50-2510 on file for Sofia Muller.",
+"values": [
+{
+"category": "account_number",
+"value": "4513 6556 7902 4207"
+},
+{
+"category": "account_number",
+"value": "465-50-2510"
+},
+{
+"category": "private_person",
+"value": "Sofia Muller"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-Q3HdAVja76RnIChtP8HKQ; notify nadia.petrov@clinic.net.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-Q3HdAVja76RnIChtP8HKQ"
+},
+{
+"category": "private_email",
+"value": "nadia.petrov@clinic.net"
+}
+]
+},
+{
+"line": "Please contact Omar Hassan at omar.hassan@clinic.net or call +1-977-410-5750.",
+"values": [
+{
+"category": "private_person",
+"value": "Omar Hassan"
+},
+{
+"category": "private_email",
+"value": "omar.hassan@clinic.net"
+},
+{
+"category": "private_phone",
+"value": "+1-977-410-5750"
+}
+]
+},
+{
+"line": "Please contact Olivia Tanaka at olivia.tanaka@example.com or call +1-686-485-9237.",
+"values": [
+{
+"category": "private_person",
+"value": "Olivia Tanaka"
+},
+{
+"category": "private_email",
+"value": "olivia.tanaka@example.com"
+},
+{
+"category": "private_phone",
+"value": "+1-686-485-9237"
+}
+]
+},
+{
+"line": "Patient Ivan Muller (DOB 21/01/1990) was admitted by Dr. Costa.",
+"values": [
+{
+"category": "private_person",
+"value": "Ivan Muller"
+},
+{
+"category": "private_date",
+"value": "21/01/1990"
+}
+]
+},
+{
+"line": "Patient Ava Hassan (DOB 20/10/1958) was admitted by Dr. Patel.",
+"values": [
+{
+"category": "private_person",
+"value": "Ava Hassan"
+},
+{
+"category": "private_date",
+"value": "20/10/1958"
+}
+]
+},
+{
+"line": "Login from liam.petrov@corp.io at IP 244.251.230.104 by Liam Petrov.",
+"values": [
+{
+"category": "private_email",
+"value": "liam.petrov@corp.io"
+},
+{
+"category": "private_url",
+"value": "244.251.230.104"
+},
+{
+"category": "private_person",
+"value": "Liam Petrov"
+}
+]
+},
+{
+"line": "Login from aisha.garcia@proton.me at IP 208.204.104.185 by Aisha Garcia.",
+"values": [
+{
+"category": "private_email",
+"value": "aisha.garcia@proton.me"
+},
+{
+"category": "private_url",
+"value": "208.204.104.185"
+},
+{
+"category": "private_person",
+"value": "Aisha Garcia"
+}
+]
+},
+{
+"line": "Card 4670 7461 2961 3741 and SSN 758-30-2231 on file for Chen Tanaka.",
+"values": [
+{
+"category": "account_number",
+"value": "4670 7461 2961 3741"
+},
+{
+"category": "account_number",
+"value": "758-30-2231"
+},
+{
+"category": "private_person",
+"value": "Chen Tanaka"
+}
+]
+},
+{
+"line": "Please contact Diego Petrov at diego.petrov@acme.co or call +1-421-294-5440.",
+"values": [
+{
+"category": "private_person",
+"value": "Diego Petrov"
+},
+{
+"category": "private_email",
+"value": "diego.petrov@acme.co"
+},
+{
+"category": "private_phone",
+"value": "+1-421-294-5440"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-mAAiTdR9Up14PehPjPB9atpTDBMf4rpa; notify james.johnson@mail.org.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-mAAiTdR9Up14PehPjPB9atpTDBMf4rpa"
+},
+{
+"category": "private_email",
+"value": "james.johnson@mail.org"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-dOQw4SG8nfnL5Ofa6qD8mJ7; notify fatima.lopez@mail.org.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-dOQw4SG8nfnL5Ofa6qD8mJ7"
+},
+{
+"category": "private_email",
+"value": "fatima.lopez@mail.org"
+}
+]
+},
+{
+"line": "Initech invoiced James Okafor; reply to james.okafor@mail.org or +1-625-253-1985.",
+"values": [
+{
+"category": "private_person",
+"value": "James Okafor"
+},
+{
+"category": "private_email",
+"value": "james.okafor@mail.org"
+},
+{
+"category": "private_phone",
+"value": "+1-625-253-1985"
+}
+]
+},
+{
+"line": "Login from chen.brown@clinic.net at IP 245.197.128.234 by Chen Brown.",
+"values": [
+{
+"category": "private_email",
+"value": "chen.brown@clinic.net"
+},
+{
+"category": "private_url",
+"value": "245.197.128.234"
+},
+{
+"category": "private_person",
+"value": "Chen Brown"
+}
+]
+},
+{
+"line": "Acme Corp invoiced Ivan Kim; reply to ivan.kim@corp.io or +1-460-955-5265.",
+"values": [
+{
+"category": "private_person",
+"value": "Ivan Kim"
+},
+{
+"category": "private_email",
+"value": "ivan.kim@corp.io"
+},
+{
+"category": "private_phone",
+"value": "+1-460-955-5265"
+}
+]
+},
+{
+"line": "Stark Industries invoiced Diego Rossi; reply to diego.rossi@university.edu or +1-817-466-1103.",
+"values": [
+{
+"category": "private_person",
+"value": "Diego Rossi"
+},
+{
+"category": "private_email",
+"value": "diego.rossi@university.edu"
+},
+{
+"category": "private_phone",
+"value": "+1-817-466-1103"
+}
+]
+},
+{
+"line": "Service token sk-live-ADjJpz6ZFkn7XvgKJWSKhK rotated; SSN 544-30-7942 kept for Fatima.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-ADjJpz6ZFkn7XvgKJWSKhK"
+},
+{
+"category": "account_number",
+"value": "544-30-7942"
+}
+]
+},
+{
+"line": "Service token sk-live-Z8hKYWHJPu05MC4j1wrC rotated; SSN 829-89-3625 kept for Ava.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-Z8hKYWHJPu05MC4j1wrC"
+},
+{
+"category": "account_number",
+"value": "829-89-3625"
+}
+]
+},
+{
+"line": "Charged card 4764 7882 6049 5083 for Grace Schmidt on 15/09/1978.",
+"values": [
+{
+"category": "account_number",
+"value": "4764 7882 6049 5083"
+},
+{
+"category": "private_person",
+"value": "Grace Schmidt"
+},
+{
+"category": "private_date",
+"value": "15/09/1978"
+}
+]
+},
+{
+"line": "Please contact Raj Dubois at raj.dubois@corp.io or call +1-830-718-4889.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Dubois"
+},
+{
+"category": "private_email",
+"value": "raj.dubois@corp.io"
+},
+{
+"category": "private_phone",
+"value": "+1-830-718-4889"
+}
+]
+},
+{
+"line": "Patient Omar Petrov (DOB 14/09/1973) was admitted by Dr. Johnson.",
+"values": [
+{
+"category": "private_person",
+"value": "Omar Petrov"
+},
+{
+"category": "private_date",
+"value": "14/09/1973"
+}
+]
+},
+{
+"line": "Service token sk-proj-DiBZLPKD6xGAnjq8MJaM rotated; SSN 760-81-6739 kept for Wei.",
+"values": [
+{
+"category": "secret",
+"value": "sk-proj-DiBZLPKD6xGAnjq8MJaM"
+},
+{
+"category": "account_number",
+"value": "760-81-6739"
+}
+]
+},
+{
+"line": "Deploy used api key sk-proj-OpCHV5v7s82QtDRojrbry6hQ; notify grace.rossi@clinic.net.",
+"values": [
+{
+"category": "secret",
+"value": "sk-proj-OpCHV5v7s82QtDRojrbry6hQ"
+},
+{
+"category": "private_email",
+"value": "grace.rossi@clinic.net"
+}
+]
+},
+{
+"line": "Card 4961 4322 3608 6355 and SSN 296-59-6383 on file for Wei Petrov.",
+"values": [
+{
+"category": "account_number",
+"value": "4961 4322 3608 6355"
+},
+{
+"category": "account_number",
+"value": "296-59-6383"
+},
+{
+"category": "private_person",
+"value": "Wei Petrov"
+}
+]
+},
+{
+"line": "Initech invoiced Noah Johnson; reply to noah.johnson@acme.co or +1-229-231-1682.",
+"values": [
+{
+"category": "private_person",
+"value": "Noah Johnson"
+},
+{
+"category": "private_email",
+"value": "noah.johnson@acme.co"
+},
+{
+"category": "private_phone",
+"value": "+1-229-231-1682"
+}
+]
+},
+{
+"line": "Wayne Enterprises invoiced Fatima Kim; reply to fatima.kim@example.com or +1-559-462-5630.",
+"values": [
+{
+"category": "private_person",
+"value": "Fatima Kim"
+},
+{
+"category": "private_email",
+"value": "fatima.kim@example.com"
+},
+{
+"category": "private_phone",
+"value": "+1-559-462-5630"
+}
+]
+},
+{
+"line": "Please contact Diego Kim at diego.kim@clinic.net or call +1-362-490-4517.",
+"values": [
+{
+"category": "private_person",
+"value": "Diego Kim"
+},
+{
+"category": "private_email",
+"value": "diego.kim@clinic.net"
+},
+{
+"category": "private_phone",
+"value": "+1-362-490-4517"
+}
+]
+},
+{
+"line": "Patient Noah Dubois (DOB 19/04/1958) was admitted by Dr. Rossi.",
+"values": [
+{
+"category": "private_person",
+"value": "Noah Dubois"
+},
+{
+"category": "private_date",
+"value": "19/04/1958"
+}
+]
+},
+{
+"line": "Wayne Enterprises invoiced Raj Tanaka; reply to raj.tanaka@mail.org or +1-351-509-5872.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Tanaka"
+},
+{
+"category": "private_email",
+"value": "raj.tanaka@mail.org"
+},
+{
+"category": "private_phone",
+"value": "+1-351-509-5872"
+}
+]
+},
+{
+"line": "Deploy used api key sk-proj-RYZDAEa6aosrWlQGOTvZ89hO; notify aisha.dubois@university.edu.",
+"values": [
+{
+"category": "secret",
+"value": "sk-proj-RYZDAEa6aosrWlQGOTvZ89hO"
+},
+{
+"category": "private_email",
+"value": "aisha.dubois@university.edu"
+}
+]
+},
+{
+"line": "Login from sofia.johnson@proton.me at IP 141.64.240.91 by Sofia Johnson.",
+"values": [
+{
+"category": "private_email",
+"value": "sofia.johnson@proton.me"
+},
+{
+"category": "private_url",
+"value": "141.64.240.91"
+},
+{
+"category": "private_person",
+"value": "Sofia Johnson"
+}
+]
+},
+{
+"line": "Please contact Yuki Garcia at yuki.garcia@example.com or call +1-778-532-3300.",
+"values": [
+{
+"category": "private_person",
+"value": "Yuki Garcia"
+},
+{
+"category": "private_email",
+"value": "yuki.garcia@example.com"
+},
+{
+"category": "private_phone",
+"value": "+1-778-532-3300"
+}
+]
+},
+{
+"line": "Patient James Okafor (DOB 07/12/1976) was admitted by Dr. Hassan.",
+"values": [
+{
+"category": "private_person",
+"value": "James Okafor"
+},
+{
+"category": "private_date",
+"value": "07/12/1976"
+}
+]
+},
+{
+"line": "Login from maria.tanaka@acme.co at IP 197.30.192.158 by Maria Tanaka.",
+"values": [
+{
+"category": "private_email",
+"value": "maria.tanaka@acme.co"
+},
+{
+"category": "private_url",
+"value": "197.30.192.158"
+},
+{
+"category": "private_person",
+"value": "Maria Tanaka"
+}
+]
+},
+{
+"line": "Charged card 4541 1894 9155 9554 for Omar Rossi on 19/12/1975.",
+"values": [
+{
+"category": "account_number",
+"value": "4541 1894 9155 9554"
+},
+{
+"category": "private_person",
+"value": "Omar Rossi"
+},
+{
+"category": "private_date",
+"value": "19/12/1975"
+}
+]
+},
+{
+"line": "Login from grace.garcia@corp.io at IP 99.231.139.201 by Grace Garcia.",
+"values": [
+{
+"category": "private_email",
+"value": "grace.garcia@corp.io"
+},
+{
+"category": "private_url",
+"value": "99.231.139.201"
+},
+{
+"category": "private_person",
+"value": "Grace Garcia"
+}
+]
+},
+{
+"line": "Login from fatima.rossi@clinic.net at IP 139.248.195.52 by Fatima Rossi.",
+"values": [
+{
+"category": "private_email",
+"value": "fatima.rossi@clinic.net"
+},
+{
+"category": "private_url",
+"value": "139.248.195.52"
+},
+{
+"category": "private_person",
+"value": "Fatima Rossi"
+}
+]
+},
+{
+"line": "Service token sk-proj-X3GXodyFJUmBWRhmBGCN33kflkN rotated; SSN 285-99-5748 kept for Diego.",
+"values": [
+{
+"category": "secret",
+"value": "sk-proj-X3GXodyFJUmBWRhmBGCN33kflkN"
+},
+{
+"category": "account_number",
+"value": "285-99-5748"
+}
+]
+},
+{
+"line": "Please contact Aisha Schmidt at aisha.schmidt@proton.me or call +1-807-823-3144.",
+"values": [
+{
+"category": "private_person",
+"value": "Aisha Schmidt"
+},
+{
+"category": "private_email",
+"value": "aisha.schmidt@proton.me"
+},
+{
+"category": "private_phone",
+"value": "+1-807-823-3144"
+}
+]
+},
+{
+"line": "Please contact Nadia Smith at nadia.smith@proton.me or call +1-248-464-9410.",
+"values": [
+{
+"category": "private_person",
+"value": "Nadia Smith"
+},
+{
+"category": "private_email",
+"value": "nadia.smith@proton.me"
+},
+{
+"category": "private_phone",
+"value": "+1-248-464-9410"
+}
+]
+},
+{
+"line": "Charged card 4218 6997 3339 6439 for Wei Schmidt on 23/08/1985.",
+"values": [
+{
+"category": "account_number",
+"value": "4218 6997 3339 6439"
+},
+{
+"category": "private_person",
+"value": "Wei Schmidt"
+},
+{
+"category": "private_date",
+"value": "23/08/1985"
+}
+]
+},
+{
+"line": "Card 4542 5284 4910 4901 and SSN 199-59-5741 on file for Omar Khan.",
+"values": [
+{
+"category": "account_number",
+"value": "4542 5284 4910 4901"
+},
+{
+"category": "account_number",
+"value": "199-59-5741"
+},
+{
+"category": "private_person",
+"value": "Omar Khan"
+}
+]
+},
+{
+"line": "Please contact Raj Okafor at raj.okafor@example.com or call +1-289-823-9117.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Okafor"
+},
+{
+"category": "private_email",
+"value": "raj.okafor@example.com"
+},
+{
+"category": "private_phone",
+"value": "+1-289-823-9117"
+}
+]
+},
+{
+"line": "Charged card 4465 5009 6258 7248 for Noah Petrov on 28/02/1996.",
+"values": [
+{
+"category": "account_number",
+"value": "4465 5009 6258 7248"
+},
+{
+"category": "private_person",
+"value": "Noah Petrov"
+},
+{
+"category": "private_date",
+"value": "28/02/1996"
+}
+]
+},
+{
+"line": "Please contact Diego Muller at diego.muller@acme.co or call +1-654-305-6745.",
+"values": [
+{
+"category": "private_person",
+"value": "Diego Muller"
+},
+{
+"category": "private_email",
+"value": "diego.muller@acme.co"
+},
+{
+"category": "private_phone",
+"value": "+1-654-305-6745"
+}
+]
+},
+{
+"line": "Please contact Noah Brown at noah.brown@university.edu or call +1-446-543-8136.",
+"values": [
+{
+"category": "private_person",
+"value": "Noah Brown"
+},
+{
+"category": "private_email",
+"value": "noah.brown@university.edu"
+},
+{
+"category": "private_phone",
+"value": "+1-446-543-8136"
+}
+]
+},
+{
+"line": "Login from grace.khan@corp.io at IP 16.137.43.120 by Grace Khan.",
+"values": [
+{
+"category": "private_email",
+"value": "grace.khan@corp.io"
+},
+{
+"category": "private_url",
+"value": "16.137.43.120"
+},
+{
+"category": "private_person",
+"value": "Grace Khan"
+}
+]
+},
+{
+"line": "Deploy used api key ghp_fRS4NSDxBKjEm3WcqDhY1cWvwGhO9rv7JaVq; notify grace.costa@university.edu.",
+"values": [
+{
+"category": "secret",
+"value": "ghp_fRS4NSDxBKjEm3WcqDhY1cWvwGhO9rv7JaVq"
+},
+{
+"category": "private_email",
+"value": "grace.costa@university.edu"
+}
+]
+},
+{
+"line": "Charged card 4856 8786 5402 3085 for Grace Okafor on 14/09/1987.",
+"values": [
+{
+"category": "account_number",
+"value": "4856 8786 5402 3085"
+},
+{
+"category": "private_person",
+"value": "Grace Okafor"
+},
+{
+"category": "private_date",
+"value": "14/09/1987"
+}
+]
+},
+{
+"line": "Card 4689 7176 4800 2440 and SSN 438-51-4975 on file for Omar Rossi.",
+"values": [
+{
+"category": "account_number",
+"value": "4689 7176 4800 2440"
+},
+{
+"category": "account_number",
+"value": "438-51-4975"
+},
+{
+"category": "private_person",
+"value": "Omar Rossi"
+}
+]
+},
+{
+"line": "Login from raj.ali@university.edu at IP 45.56.150.177 by Raj Ali.",
+"values": [
+{
+"category": "private_email",
+"value": "raj.ali@university.edu"
+},
+{
+"category": "private_url",
+"value": "45.56.150.177"
+},
+{
+"category": "private_person",
+"value": "Raj Ali"
+}
+]
+},
+{
+"line": "Login from yuki.khan@clinic.net at IP 106.62.74.41 by Yuki Khan.",
+"values": [
+{
+"category": "private_email",
+"value": "yuki.khan@clinic.net"
+},
+{
+"category": "private_url",
+"value": "106.62.74.41"
+},
+{
+"category": "private_person",
+"value": "Yuki Khan"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-OCK7l2LUA530dTamQ94f8EP; notify sofia.garcia@corp.io.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-OCK7l2LUA530dTamQ94f8EP"
+},
+{
+"category": "private_email",
+"value": "sofia.garcia@corp.io"
+}
+]
+},
+{
+"line": "Login from fatima.hassan@university.edu at IP 102.185.58.86 by Fatima Hassan.",
+"values": [
+{
+"category": "private_email",
+"value": "fatima.hassan@university.edu"
+},
+{
+"category": "private_url",
+"value": "102.185.58.86"
+},
+{
+"category": "private_person",
+"value": "Fatima Hassan"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-AYtFsLx2OUMq5GEj6XzgwTME; notify grace.schmidt@clinic.net.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-AYtFsLx2OUMq5GEj6XzgwTME"
+},
+{
+"category": "private_email",
+"value": "grace.schmidt@clinic.net"
+}
+]
+},
+{
+"line": "Login from omar.johnson@proton.me at IP 177.179.211.7 by Omar Johnson.",
+"values": [
+{
+"category": "private_email",
+"value": "omar.johnson@proton.me"
+},
+{
+"category": "private_url",
+"value": "177.179.211.7"
+},
+{
+"category": "private_person",
+"value": "Omar Johnson"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-8s0zjQLiKxoPiQP9DKWW; notify diego.nguyen@corp.io.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-8s0zjQLiKxoPiQP9DKWW"
+},
+{
+"category": "private_email",
+"value": "diego.nguyen@corp.io"
+}
+]
+},
+{
+"line": "Login from omar.johnson@mail.org at IP 179.153.68.227 by Omar Johnson.",
+"values": [
+{
+"category": "private_email",
+"value": "omar.johnson@mail.org"
+},
+{
+"category": "private_url",
+"value": "179.153.68.227"
+},
+{
+"category": "private_person",
+"value": "Omar Johnson"
+}
+]
+},
+{
+"line": "Service token 2a83fdf6a0b29872400c49b5539ac5ba7b4b8711 rotated; SSN 682-56-5743 kept for Raj.",
+"values": [
+{
+"category": "secret",
+"value": "2a83fdf6a0b29872400c49b5539ac5ba7b4b8711"
+},
+{
+"category": "account_number",
+"value": "682-56-5743"
+}
+]
+},
+{
+"line": "Card 4406 2314 3324 4727 and SSN 267-27-8261 on file for Maria Patel.",
+"values": [
+{
+"category": "account_number",
+"value": "4406 2314 3324 4727"
+},
+{
+"category": "account_number",
+"value": "267-27-8261"
+},
+{
+"category": "private_person",
+"value": "Maria Patel"
+}
+]
+},
+{
+"line": "Stark Industries invoiced Sofia Tanaka; reply to sofia.tanaka@corp.io or +1-204-653-6703.",
+"values": [
+{
+"category": "private_person",
+"value": "Sofia Tanaka"
+},
+{
+"category": "private_email",
+"value": "sofia.tanaka@corp.io"
+},
+{
+"category": "private_phone",
+"value": "+1-204-653-6703"
+}
+]
+},
+{
+"line": "Patient Nadia Dubois (DOB 07/09/1997) was admitted by Dr. Schmidt.",
+"values": [
+{
+"category": "private_person",
+"value": "Nadia Dubois"
+},
+{
+"category": "private_date",
+"value": "07/09/1997"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-THtIb64Fn3MkH6u3WKXv1VzwvrA; notify diego.khan@university.edu.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-THtIb64Fn3MkH6u3WKXv1VzwvrA"
+},
+{
+"category": "private_email",
+"value": "diego.khan@university.edu"
+}
+]
+},
+{
+"line": "Charged card 4144 6790 2632 6828 for Noah Petrov on 02/11/1965.",
+"values": [
+{
+"category": "account_number",
+"value": "4144 6790 2632 6828"
+},
+{
+"category": "private_person",
+"value": "Noah Petrov"
+},
+{
+"category": "private_date",
+"value": "02/11/1965"
+}
+]
+},
+{
+"line": "Card 4106 6496 8920 6468 and SSN 332-12-5075 on file for Olivia Dubois.",
+"values": [
+{
+"category": "account_number",
+"value": "4106 6496 8920 6468"
+},
+{
+"category": "account_number",
+"value": "332-12-5075"
+},
+{
+"category": "private_person",
+"value": "Olivia Dubois"
+}
+]
+},
+{
+"line": "Patient Omar Hassan (DOB 15/06/1999) was admitted by Dr. Ali.",
+"values": [
+{
+"category": "private_person",
+"value": "Omar Hassan"
+},
+{
+"category": "private_date",
+"value": "15/06/1999"
+}
+]
+},
+{
+"line": "Charged card 4363 8591 1222 1421 for Grace Brown on 02/07/1989.",
+"values": [
+{
+"category": "account_number",
+"value": "4363 8591 1222 1421"
+},
+{
+"category": "private_person",
+"value": "Grace Brown"
+},
+{
+"category": "private_date",
+"value": "02/07/1989"
+}
+]
+},
+{
+"line": "Please contact Maria Hassan at maria.hassan@acme.co or call +1-991-762-8424.",
+"values": [
+{
+"category": "private_person",
+"value": "Maria Hassan"
+},
+{
+"category": "private_email",
+"value": "maria.hassan@acme.co"
+},
+{
+"category": "private_phone",
+"value": "+1-991-762-8424"
+}
+]
+},
+{
+"line": "Charged card 4919 7373 8538 4474 for Noah Muller on 22/12/1950.",
+"values": [
+{
+"category": "account_number",
+"value": "4919 7373 8538 4474"
+},
+{
+"category": "private_person",
+"value": "Noah Muller"
+},
+{
+"category": "private_date",
+"value": "22/12/1950"
+}
+]
+},
+{
+"line": "Card 4439 1064 8955 5091 and SSN 265-50-8422 on file for Chen Johnson.",
+"values": [
+{
+"category": "account_number",
+"value": "4439 1064 8955 5091"
+},
+{
+"category": "account_number",
+"value": "265-50-8422"
+},
+{
+"category": "private_person",
+"value": "Chen Johnson"
+}
+]
+},
+{
+"line": "Service token sk-proj-gDayj8XRAUsCpdiSjVsa3vt rotated; SSN 848-19-5472 kept for Nadia.",
+"values": [
+{
+"category": "secret",
+"value": "sk-proj-gDayj8XRAUsCpdiSjVsa3vt"
+},
+{
+"category": "account_number",
+"value": "848-19-5472"
+}
+]
+},
+{
+"line": "Deploy used api key sk-live-HF1nyC6tDZsjUrpcjqUdkAevp2egVl; notify olivia.sato@university.edu.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-HF1nyC6tDZsjUrpcjqUdkAevp2egVl"
+},
+{
+"category": "private_email",
+"value": "olivia.sato@university.edu"
+}
+]
+},
+{
+"line": "Card 4372 6277 2179 9897 and SSN 780-38-5340 on file for Yuki Lopez.",
+"values": [
+{
+"category": "account_number",
+"value": "4372 6277 2179 9897"
+},
+{
+"category": "account_number",
+"value": "780-38-5340"
+},
+{
+"category": "private_person",
+"value": "Yuki Lopez"
+}
+]
+},
+{
+"line": "Card 4633 5954 8418 2441 and SSN 381-60-5759 on file for Chen Tanaka.",
+"values": [
+{
+"category": "account_number",
+"value": "4633 5954 8418 2441"
+},
+{
+"category": "account_number",
+"value": "381-60-5759"
+},
+{
+"category": "private_person",
+"value": "Chen Tanaka"
+}
+]
+},
+{
+"line": "Charged card 4371 8177 2496 9604 for Omar Sato on 07/03/1977.",
+"values": [
+{
+"category": "account_number",
+"value": "4371 8177 2496 9604"
+},
+{
+"category": "private_person",
+"value": "Omar Sato"
+},
+{
+"category": "private_date",
+"value": "07/03/1977"
+}
+]
+},
+{
+"line": "Stark Industries invoiced Yuki Tanaka; reply to yuki.tanaka@clinic.net or +1-624-708-1419.",
+"values": [
+{
+"category": "private_person",
+"value": "Yuki Tanaka"
+},
+{
+"category": "private_email",
+"value": "yuki.tanaka@clinic.net"
+},
+{
+"category": "private_phone",
+"value": "+1-624-708-1419"
+}
+]
+},
+{
+"line": "Card 4963 3297 7667 1820 and SSN 741-28-6250 on file for Ava Garcia.",
+"values": [
+{
+"category": "account_number",
+"value": "4963 3297 7667 1820"
+},
+{
+"category": "account_number",
+"value": "741-28-6250"
+},
+{
+"category": "private_person",
+"value": "Ava Garcia"
+}
+]
+},
+{
+"line": "Login from noah.brown@mail.org at IP 204.224.149.52 by Noah Brown.",
+"values": [
+{
+"category": "private_email",
+"value": "noah.brown@mail.org"
+},
+{
+"category": "private_url",
+"value": "204.224.149.52"
+},
+{
+"category": "private_person",
+"value": "Noah Brown"
+}
+]
+},
+{
+"line": "Patient Raj Sato (DOB 14/04/1992) was admitted by Dr. Smith.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Sato"
+},
+{
+"category": "private_date",
+"value": "14/04/1992"
+}
+]
+},
+{
+"line": "Patient Raj Costa (DOB 19/05/1952) was admitted by Dr. Khan.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Costa"
+},
+{
+"category": "private_date",
+"value": "19/05/1952"
+}
+]
+},
+{
+"line": "Initech invoiced Sofia Okafor; reply to sofia.okafor@university.edu or +1-672-236-1552.",
+"values": [
+{
+"category": "private_person",
+"value": "Sofia Okafor"
+},
+{
+"category": "private_email",
+"value": "sofia.okafor@university.edu"
+},
+{
+"category": "private_phone",
+"value": "+1-672-236-1552"
+}
+]
+},
+{
+"line": "Patient Raj Hassan (DOB 02/08/1994) was admitted by Dr. Garcia.",
+"values": [
+{
+"category": "private_person",
+"value": "Raj Hassan"
+},
+{
+"category": "private_date",
+"value": "02/08/1994"
+}
+]
+},
+{
+"line": "Wayne Enterprises invoiced Grace Brown; reply to grace.brown@example.com or +1-242-420-3862.",
+"values": [
+{
+"category": "private_person",
+"value": "Grace Brown"
+},
+{
+"category": "private_email",
+"value": "grace.brown@example.com"
+},
+{
+"category": "private_phone",
+"value": "+1-242-420-3862"
+}
+]
+},
+{
+"line": "Deploy used api key ghp_5Dvd1yzrlKbY0oy83gTv9lip8oHE9yyzQw12; notify wei.okafor@acme.co.",
+"values": [
+{
+"category": "secret",
+"value": "ghp_5Dvd1yzrlKbY0oy83gTv9lip8oHE9yyzQw12"
+},
+{
+"category": "private_email",
+"value": "wei.okafor@acme.co"
+}
+]
+},
+{
+"line": "Deploy used api key ghp_fmB8H4zeaamTdJViNFWZ2dnCSVFRLs4caqiz; notify ivan.schmidt@clinic.net.",
+"values": [
+{
+"category": "secret",
+"value": "ghp_fmB8H4zeaamTdJViNFWZ2dnCSVFRLs4caqiz"
+},
+{
+"category": "private_email",
+"value": "ivan.schmidt@clinic.net"
+}
+]
+},
+{
+"line": "Login from maria.tanaka@proton.me at IP 245.96.83.101 by Maria Tanaka.",
+"values": [
+{
+"category": "private_email",
+"value": "maria.tanaka@proton.me"
+},
+{
+"category": "private_url",
+"value": "245.96.83.101"
+},
+{
+"category": "private_person",
+"value": "Maria Tanaka"
+}
+]
+},
+{
+"line": "Please contact Fatima Nguyen at fatima.nguyen@clinic.net or call +1-838-539-8276.",
+"values": [
+{
+"category": "private_person",
+"value": "Fatima Nguyen"
+},
+{
+"category": "private_email",
+"value": "fatima.nguyen@clinic.net"
+},
+{
+"category": "private_phone",
+"value": "+1-838-539-8276"
+}
+]
+},
+{
+"line": "Card 4147 7426 3843 5601 and SSN 742-40-5770 on file for Chen Johnson.",
+"values": [
+{
+"category": "account_number",
+"value": "4147 7426 3843 5601"
+},
+{
+"category": "account_number",
+"value": "742-40-5770"
+},
+{
+"category": "private_person",
+"value": "Chen Johnson"
+}
+]
+},
+{
+"line": "Patient Chen Sato (DOB 26/05/1990) was admitted by Dr. Ali.",
+"values": [
+{
+"category": "private_person",
+"value": "Chen Sato"
+},
+{
+"category": "private_date",
+"value": "26/05/1990"
+}
+]
+},
+{
+"line": "Card 4893 7616 7463 6599 and SSN 509-60-9188 on file for Omar Rossi.",
+"values": [
+{
+"category": "account_number",
+"value": "4893 7616 7463 6599"
+},
+{
+"category": "account_number",
+"value": "509-60-9188"
+},
+{
+"category": "private_person",
+"value": "Omar Rossi"
+}
+]
+},
+{
+"line": "Service token sk-live-1zkitBOxLBzgRbXE9oRuFlHZ rotated; SSN 595-38-5819 kept for Lucas.",
+"values": [
+{
+"category": "secret",
+"value": "sk-live-1zkitBOxLBzgRbXE9oRuFlHZ"
+},
+{
+"category": "account_number",
+"value": "595-38-5819"
+}
+]
+},
+{
+"line": "Please contact Emma Garcia at emma.garcia@proton.me or call +1-580-744-6397.",
+"values": [
+{
+"category": "private_person",
+"value": "Emma Garcia"
+},
+{
+"category": "private_email",
+"value": "emma.garcia@proton.me"
+},
+{
+"category": "private_phone",
+"value": "+1-580-744-6397"
+}
+]
+},
+{
+"line": "Login from grace.smith@example.com at IP 12.89.181.108 by Grace Smith.",
+"values": [
+{
+"category": "private_email",
+"value": "grace.smith@example.com"
+},
+{
+"category": "private_url",
+"value": "12.89.181.108"
+},
+{
+"category": "private_person",
+"value": "Grace Smith"
+}
+]
+}
+]

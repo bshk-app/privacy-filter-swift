@@ -1,0 +1,18 @@
+# model weights & large / regenerable artifacts — never commit
+models/
+*.safetensors
+*.npz
+*.mlpackage/
+
+# python
+__pycache__/
+*.pyc
+
+# swift / xcode build
+.build/
+pf/.build/
+.swiftpm/
+*.xcodeproj
+*.profraw
+
+.DS_Store

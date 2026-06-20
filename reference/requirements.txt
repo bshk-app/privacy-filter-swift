@@ -1,0 +1,14 @@
+# Apple ANE experiment dependencies.
+#
+# PC / CUDA box (download, reference, export):
+#   uv venv && uv pip install -r apple/requirements.txt coremltools
+# Mac (verify only — runs the .mlpackage against the PC-dumped ref.npz):
+#   needs ONLY  coremltools + numpy
+torch>=2.2
+numpy
+safetensors>=0.4
+tokenizers>=0.20
+huggingface_hub>=0.25
+
+# add on whichever box runs export_coreml.py / dump_reference.py / verify_ane.py:
+#   coremltools>=8.1   (>=9.0 for the MLComputePlan residency report)
