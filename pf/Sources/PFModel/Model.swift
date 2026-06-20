@@ -123,6 +123,16 @@ func quantExpert(_ w: MLXArray, qbits: Int, qgroup: Int) -> ExpertWeight {
     return .quant(wq: wq, scales: scales, biases: biases)
 }
 
+// A PRE-quantized artifact (built by reference/export_mlx_quant.py) carries a
+// `quantization` block in config.json; a bf16 checkpoint does not. Returns the block's
+// {bits, group_size, embed_bits}, or nil for a bf16 checkpoint that must quantize at load.
+func quantConfig(_ dir: URL) throws -> (bits: Int, group: Int, embedBits: Int)? {
+    let cfg = try JSONSerialization.jsonObject(
+        with: Data(contentsOf: dir.appendingPathComponent("config.json"))) as! [String: Any]
+    guard let q = cfg["quantization"] as? [String: Any] else { return nil }
+    return (int(q["bits"]), int(q["group_size"]), int(q["embed_bits"]))
+}
+
 func loadModel(_ dir: URL, _ hp: HP, qbits: Int, qgroup: Int, dtype: DType)
     throws -> (MLXArray, [Layer], MLXArray, MLXArray, MLXArray) {
     let raw = try loadArrays(url: dir.appendingPathComponent("model.safetensors"))
@@ -152,6 +162,36 @@ func loadModel(_ dir: URL, _ hp: HP, qbits: Int, qgroup: Int, dtype: DType)
     }
     return (f("model.embed_tokens.weight"), layers, f("model.norm.weight"),
             f("score.weight"), f("score.bias"))
+}
+
+// Load a PRE-quantized artifact (reference/export_mlx_quant.py): the model's INTERNAL
+// `w`-dict layout straight from safetensors — quantized experts/embedding as
+// (wq,scales,biases) triples (`<key>.weight/.scales/.biases`), everything else dense fp16.
+// No runtime quantize: the swapaxes/split/`mx.quantize` already happened at export, so this
+// mirrors load_weights_mx's OUTPUT, not its transforms. Bit-identical to the runtime q-path
+// that produced it (export's `--verify` proves cosine 1.0). The (wq,scales,biases) format is
+// shared across MLX bindings, so Python-quantized tensors load straight into mlx-swift.
+func loadModelPrequant(_ dir: URL, _ hp: HP, embedBits: Int, dtype: DType)
+    throws -> (Embedding, [Layer], MLXArray, MLXArray, MLXArray) {
+    let raw = try loadArrays(url: dir.appendingPathComponent("model.safetensors"))
+    func d(_ k: String) -> MLXArray { raw[k]!.asType(dtype) }   // dense tensors -> working dtype
+    func qexp(_ base: String) -> ExpertWeight {                 // (wq,scales,biases) triple, kept as-is
+        .quant(wq: raw[base + ".weight"]!, scales: raw[base + ".scales"]!, biases: raw[base + ".biases"]!)
+    }
+    var layers: [Layer] = []
+    for i in 0..<hp.nLayer {
+        let o = "l\(i)."
+        layers.append(Layer(
+            attnNorm: d(o + "attn_norm"),
+            wq: d(o + "wq"), bq: d(o + "bq"), wk: d(o + "wk"), bk: d(o + "bk"), wv: d(o + "wv"), bv: d(o + "bv"),
+            wo: d(o + "wo"), bo: d(o + "bo"), sinks: d(o + "sinks"), postNorm: d(o + "post_norm"),
+            routerW: d(o + "router_w"), routerB: d(o + "router_b"),
+            gateB: d(o + "gate_b"), upB: d(o + "up_b"), downB: d(o + "down_b"),
+            gateW: qexp(o + "gate_w"), upW: qexp(o + "up_w"), downW: qexp(o + "down_w")))
+    }
+    let embd = Embedding.quant(wq: raw["tok_embd.weight"]!, scales: raw["tok_embd.scales"]!,
+                               biases: raw["tok_embd.biases"]!, bits: embedBits)
+    return (embd, layers, d("output_norm"), d("cls_w"), d("cls_b"))
 }
 
 // ---- forward ------------------------------------------------------------------
@@ -292,22 +332,50 @@ public struct Model {
     /// Quantization is LOSSY: the quantized model targets cosine ≥ 0.995 / argmax ≥ 99%
     /// vs the fp32 fixtures (matches pf_mlx's measured 4-bit ≈ 0.998). The shipped CLI uses
     /// the 4/64/8 default (~870 MB); pass `qbits: 0` for the exact-parity reference path.
+    ///
+    /// If `modelDir` is a PRE-quantized artifact (config.json has a `quantization` block,
+    /// produced by reference/export_mlx_quant.py) the triples are loaded straight in and the
+    /// `qbits`/`qgroup`/`qembed` args are IGNORED — the on-disk block is authoritative.
     public init(modelDir: URL, qbits: Int = 4, qgroup: Int = 64, qembed: Int = 8) throws {
         let hp = try loadHP(modelDir)
-        // fp32 for the exact parity reference; fp16 once we quantize (the 870 MB config).
-        let dtype: DType = qbits > 0 ? .float16 : .float32
-        let (embdW, layers, outNorm, clsW, clsB) = try loadModel(modelDir, hp, qbits: qbits, qgroup: qgroup, dtype: dtype)
+        let embd: Embedding
+        let layers: [Layer]
+        let outNorm: MLXArray
+        let clsW: MLXArray
+        let clsB: MLXArray
+        let effQbits: Int
+        let effQgroup: Int
+        let dtype: DType
+
+        if let q = try quantConfig(modelDir) {
+            // PRE-quantized artifact: load (wq,scales,biases) triples directly, no runtime
+            // quantize. Always fp16 (matches export's working dtype). Init args ignored.
+            dtype = .float16
+            effQbits = q.bits
+            effQgroup = q.group
+            let (e, l, on, cw, cb) = try loadModelPrequant(modelDir, hp, embedBits: q.embedBits, dtype: dtype)
+            embd = e; layers = l; outNorm = on; clsW = cw; clsB = cb
+        } else {
+            // bf16 checkpoint: fp32 for the exact parity reference; fp16 once we quantize.
+            dtype = qbits > 0 ? .float16 : .float32
+            effQbits = qbits
+            effQgroup = qgroup
+            let (embdW, l, on, cw, cb) = try loadModel(modelDir, hp, qbits: qbits, qgroup: qgroup, dtype: dtype)
+            embd = quantEmbedding(embdW, qembed: qembed, qgroup: qgroup)
+            layers = l; outNorm = on; clsW = cw; clsB = cb
+        }
+
         let (invArr, attnFactor) = yarnInvFreq(hp)
         self.hp = hp
-        self.embd = quantEmbedding(embdW, qembed: qembed, qgroup: qgroup)
+        self.embd = embd
         self.layers = layers
         self.outNorm = outNorm
         self.clsW = clsW
         self.clsB = clsB
         self.inv = MLXArray(invArr)
         self.attnFactor = attnFactor
-        self.qbits = qbits
-        self.qgroup = qgroup
+        self.qbits = effQbits
+        self.qgroup = effQgroup
         self.dtype = dtype
     }
 

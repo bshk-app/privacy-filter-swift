@@ -18,7 +18,7 @@ struct Fixture: Decodable { let ids: [Int]; let labels: [String]; let argmax: [I
 
 let args = CommandLine.arguments
 guard args.count > 2 else {
-    FileHandle.standardError.write(Data("usage: pf-parity <model_dir> <fixture.json>\n".utf8)); exit(2)
+    FileHandle.standardError.write(Data("usage: pf-parity <bf16_model_dir> <fixture.json> [prequant_dir]\n".utf8)); exit(2)
 }
 let modelDir = URL(fileURLWithPath: args[1])
 
@@ -57,6 +57,38 @@ let weightMB = Double(q.weightBytes) / (1024 * 1024)
 print(String(format: "[q4/8] argmax-agree=%.1f%% (%d/%d)  cosine=%.6f  weight_mb=%.1f",
              Double(h1) / Double(n1) * 100, h1, n1, c1, weightMB))
 
+// ── [q4/8-pre] OPTIONAL pre-quantized artifact (reference/export_mlx_quant.py): config.json
+//    carries a `quantization` block, so Model auto-loads the saved (wq,scales,biases) triples
+//    (init args ignored). It must reproduce the runtime q4/8 model it was exported FROM — same
+//    weights, only round-tripped through safetensors — so cosine vs runtime-q ≥ 0.9999 AND
+//    identical per-token argmax. Pass its dir as the 3rd arg to enable this check. ───────────
+var preOK = true
+if args.count > 3 {
+    let pre = try Model(modelDir: URL(fileURLWithPath: args[3]))
+    let preLog = pre.logits(fix.ids).asType(.float32).asArray(Float.self)
+    let qLog = q.logits(fix.ids).asType(.float32).asArray(Float.self)
+    let C = q.hp.labels.count, n = fix.ids.count
+    var hit = 0, dot = 0.0, na = 0.0, nb = 0.0
+    for i in 0..<n {
+        var pBest = 0, qBest = 0
+        for c in 1..<C {
+            if preLog[i * C + c] > preLog[i * C + pBest] { pBest = c }
+            if qLog[i * C + c] > qLog[i * C + qBest] { qBest = c }
+        }
+        if pBest == qBest { hit += 1 }
+        for c in 0..<C {
+            let a = Double(preLog[i * C + c]), b = Double(qLog[i * C + c])
+            dot += a * b; na += a * a; nb += b * b
+        }
+    }
+    let cos = dot / (na.squareRoot() * nb.squareRoot() + 1e-9)
+    let preMB = Double(pre.weightBytes) / (1024 * 1024)
+    print(String(format: "[q4/8-pre] vs runtime-q: argmax-agree=%.1f%% (%d/%d)  cosine=%.6f  weight_mb=%.1f",
+                 Double(hit) / Double(n) * 100, hit, n, cos, preMB))
+    preOK = (hit == n) && (cos >= 0.9999)
+    print(preOK ? "PREQUANT OK (q4/8-pre ≡ runtime-q)" : "PREQUANT FAIL")
+}
+
 // ── Gates. fp32 must be exact; q4/8 must clear the lossy quality bars. ────────────────
 // cosine ≥ 0.995 is the primary quality metric (robust at any length). The "≥99% argmax"
 // bar is a per-token flip RATE — meaningful only at scale: 4-bit flips ~0.6–1% of tokens
@@ -70,4 +102,4 @@ let qOK = (c1 >= 0.995) && (flips <= budget)
 print(String(format: "[q4/8] flips=%d (budget %d)", flips, budget))
 print(fp32OK ? "PARITY OK (fp32)" : "MISMATCH (fp32)")
 print(qOK ? "QUANT OK (q4/8)" : "QUANT FAIL (q4/8)")
-exit((fp32OK && qOK) ? 0 : 1)
+exit((fp32OK && qOK && preOK) ? 0 : 1)
