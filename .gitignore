@@ -15,4 +15,10 @@ pf/.build/
 *.xcodeproj
 *.profraw
 
+# generated eval corpora (regenerate via make_gold*.py / make_gold_ai4privacy.py)
+reference/gold_*.jsonl
+
+# Claude Code session / hook state — never commit
+.claude/
+
 .DS_Store
