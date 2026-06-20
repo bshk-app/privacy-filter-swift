@@ -57,6 +57,9 @@ struct PF: AsyncParsableCommand {
     @Flag(name: .long, help: "Emit the raw line on a processing error instead of withholding it (UNSAFE; opt-in).")
     var failOpen = false
 
+    @Option(name: .long, help: "Label decoder: 'viterbi' (constrained BIOES, default) or 'argmax' (per-token).")
+    var decoder = "viterbi"
+
     mutating func run() async throws {
         let modelDir = URL(fileURLWithPath: model)
 
@@ -116,7 +119,11 @@ struct PF: AsyncParsableCommand {
             return redactor.redact(line, spans: [])
         }
         let flat = model.logits(ids).asType(.float32).asArray(Float.self)   // [n*C], row-major
-        let lineLabels = argmaxLabels(flat, nCls: nCls, labels: labels)
+        // Constrained Viterbi (default) decodes the best LEGAL BIOES path → coherent, same-type
+        // spans; 'argmax' is the per-token baseline (kept for A/B measurement via eval_prf.py).
+        let lineLabels = decoder == "argmax"
+            ? argmaxLabels(flat, nCls: nCls, labels: labels)
+            : viterbiLabels(flat, nCls: nCls, labels: labels)
         // Belt-and-suspenders: labels (one per token row) and offsets (one per id) must be
         // 1:1. A model/tokenizer desync would otherwise let bioesToSpans index past offsets
         // and trap (uncatchable). Throwing here turns it into a CAUGHT fail-closed line.
