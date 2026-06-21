@@ -1,18 +1,21 @@
 // `pf serve` — resident daemon (design §2 protocol, §3 concurrency; Task 3 MVP).
 //
-// Loads the MLX model ONCE and serves many concurrent clients over a unix socket,
-// producing bytes BYTE-IDENTICAL to one-shot `pf` for the same input (the serve≡spawn
-// invariant). It is pure transport around the unchanged redaction core (RedactPipeline).
+// Loads the MLX model ONCE and serves many concurrent clients over a unix socket. A frame
+// payload is treated as a complete stdin batch: the response equals one-shot `pf` output for
+// the same input WITH THE TRAILING NEWLINE TRIMMED (one-shot `print`s a trailing newline per
+// line; serve joins lines with "\n" and emits no trailing newline). This is the serve≡spawn
+// invariant. It is pure transport around the unchanged redaction core (RedactPipeline).
 //
 // ── DESIGN (Task 3 scope) ─────────────────────────────────────────────────────────────
 //   • Unix domain socket at $PF_SOCK ▸ ~/.pf/pf.sock (dir 0700, socket 0600). Low-level
 //     POSIX (Foundation/Network have no clean unix-domain *server* API).
 //   • Model + tokenizer load ONCE before bind/accept — fail-closed: a load error exits
 //     non-zero before serving (a daemon that cannot redact must never accept clients).
-//   • Single GPU executor = an `actor` (GPUExecutor) serializing ALL forwards, because
-//     MLX eval is not safe to run concurrently. Connections await ONE line at a time, so
-//     the actor interleaves lines fairly: a 1000-line frame on conn A never starves a
-//     1-line frame on conn B.
+//   • Single GPU executor = an `actor` (GPUExecutor) serializing ALL forwards — by choice,
+//     not necessity: a single GPU yields no concurrency speedup, so serializing keeps the
+//     executor simple. (MLX 0.31.2+ is in fact thread-safe for independent computation — see
+//     design §3.) Connections await ONE line at a time, so the actor interleaves lines fairly:
+//     a 1000-line frame on conn A never starves a 1-line frame on conn B.
 //   • Each accepted connection = its own Task with its OWN fresh Redactor (stable
 //     <SECRET_n> tokens are per-connection; NEVER shared across connections).
 //   • Per-line fail-closed EXACTLY like one-shot: a line that can't be processed becomes
@@ -20,6 +23,10 @@
 //
 // Lock / --force / stale-socket reclaim is Task 4 — here a pre-existing socket path is a
 // hard error (stub). Micro-batching (design §3 C) is deferred.
+//
+// SHUTDOWN: SIGINT/SIGTERM hard-exit WITHOUT draining in-flight connections (the handler only
+// unlinks the socket and _exit()s — async-signal-safe). Graceful drain (design §4) is deferred
+// to Task 4.
 
 import ArgumentParser
 import Darwin
@@ -27,9 +34,11 @@ import Foundation
 import PFCore
 import PFModel
 
-/// The one GPU executor. An `actor` so all MLX forwards run serialized (MLX eval is not
-/// safe concurrently) AND so connections fairly interleave: each connection awaits a single
-/// line, releasing the actor between lines so other connections' lines can run.
+/// The one GPU executor. An `actor` so all MLX forwards run serialized — serialized by choice
+/// (single GPU → no concurrency speedup; keeps the executor simple), not because MLX is unsafe
+/// (MLX 0.31.2+ is thread-safe for independent computation, see design §3) — AND so connections
+/// fairly interleave: each connection awaits a single line, releasing the actor between lines so
+/// other connections' lines can run.
 actor GPUExecutor {
     private let pipeline: RedactPipeline
 
@@ -40,6 +49,13 @@ actor GPUExecutor {
     /// Redact one line through the shared pipeline. Per-line fail-closed: on ANY error the
     /// line is withheld (placeholder, identical to one-shot) — never emitted raw. The
     /// caller's per-connection Redactor is updated and returned (value type → carry forward).
+    ///
+    /// STATUS CONTRACT (design §2): a per-line failure here yields the placeholder INSIDE a
+    /// `status 0` frame — it mirrors one-shot `pf`, which also withholds the failing line and
+    /// keeps producing output. `status 1` (whole-request failure) is unused in the MVP (the
+    /// caller never emits it; that path is reserved for future request-level errors), and
+    /// `status 2` is reserved for protocol/frame errors. So the placeholder does NOT escalate
+    /// the frame status — that is intentional, not a missing error path.
     func process(_ line: String, _ redactor: Redactor) -> (out: String, redactor: Redactor) {
         var r = redactor
         let out = (try? pipeline.redactLine(line, into: &r)) ?? lineRedactedPlaceholder
@@ -83,10 +99,14 @@ struct Serve: AsyncParsableCommand {
         let pipeline = RedactPipeline(tok: tok, model: pfModel, labels: pfModel.hp.labels, decoder: opts.decoder)
         let executor = GPUExecutor(pipeline: pipeline)
 
+        // ── Install the cleanup handler BEFORE bind so a Ctrl-C during startup can't orphan
+        //    the socket file. Unlinking a not-yet-created path is harmless (the handler only
+        //    unlink()s + _exit()s — async-signal-safe). ──────────────────────────────────────
+        installSignalCleanup(sockPath: sockPath)
+
         // ── Bind. (Lock/--force/stale-reclaim is Task 4 — for now a pre-existing path is a
         //    hard error.) ──────────────────────────────────────────────────────────────────
         let listenFD = try Self.bind(sockPath: sockPath)
-        installSignalCleanup(sockPath: sockPath)
         logStderr("pf serve: listening on \(sockPath) (pid \(getpid()))")
 
         // ── Accept loop. Each connection → its own Task with a fresh Redactor. ─────────────
@@ -95,8 +115,27 @@ struct Serve: AsyncParsableCommand {
             while true {
                 let connFD = accept(listenFD, nil, nil)
                 if connFD < 0 {
-                    if errno == EINTR { continue }   // interrupted by a signal → retry
-                    break                            // listener closed/errored → stop accepting
+                    let e = errno
+                    // A single client must NEVER be able to kill the listener: treat per-connection
+                    // and resource-exhaustion errors as transient (log + continue). Only a truly
+                    // broken listener fd (EBADF/EINVAL) is fatal.
+                    switch e {
+                    case EINTR:                       // interrupted by a signal → retry
+                        continue
+                    case ECONNABORTED:                // client aborted before accept → skip it
+                        logStderr("pf serve: accept() ECONNABORTED — skipping")
+                        continue
+                    case EMFILE, ENFILE:              // fd table full → back off briefly, don't busy-spin
+                        logStderr("pf serve: accept() \(String(cString: strerror(e))) — fds exhausted, backing off")
+                        usleep(20_000)                // ~20 ms while fds free up
+                        continue
+                    case EBADF, EINVAL:               // listener fd is broken → fatal, stop accepting
+                        logStderr("pf serve: accept() \(String(cString: strerror(e))) — listener unusable, stopping")
+                    default:                          // unexpected → treat as transient, keep serving
+                        logStderr("pf serve: accept() \(String(cString: strerror(e))) — transient, continuing")
+                        continue
+                    }
+                    break
                 }
                 group.addTask {
                     await Self.serveConnection(connFD, executor: executor, only: only, except: except)
@@ -170,23 +209,43 @@ struct Serve: AsyncParsableCommand {
         try FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
+        // createDirectory's posixPermissions only applies to dirs it CREATES; a pre-existing
+        // ~/.pf could be looser. The pf runtime dir holds the socket (and will hold pid/log/map),
+        // so force it 0700 — hard error if that doesn't stick. For an explicit --sock pointing
+        // at a SHARED dir we don't own (e.g. /tmp, an XDG runtime dir), chmod is best-effort:
+        // it's not pf's dir to tighten, and the socket itself is still locked down to 0600 below.
+        let defaultDir = "\(NSHomeDirectory())/.pf"
+        if chmod(dir, 0o700) != 0 {
+            let e = errno
+            if dir == defaultDir {
+                throw RuntimeError("chmod(\(dir), 0700) failed: \(String(cString: strerror(e)))")
+            }
+            logStderr("pf serve: chmod(\(dir), 0700) failed (\(String(cString: strerror(e)))) — not the pf runtime dir, continuing")
+        }
 
         if FileManager.default.fileExists(atPath: sockPath) {
             throw RuntimeError("socket path already exists: \(sockPath) (lock/--force is Task 4 — remove it or pass --sock)")
         }
-        // sun_path is a fixed C array (104 bytes on Darwin); over-long paths would truncate.
-        guard sockPath.utf8.count < MemoryLayout.size(ofValue: sockaddr_un().sun_path) else {
-            throw RuntimeError("socket path too long (\(sockPath.utf8.count) bytes): \(sockPath)")
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        // sun_path is a fixed C array; reserve one byte for the NUL terminator. Derive the cap
+        // from the type (not a literal) so it tracks the platform's sockaddr_un definition.
+        let cap = MemoryLayout.size(ofValue: addr.sun_path) - 1
+        guard sockPath.utf8.count <= cap else {
+            throw RuntimeError("socket path too long (\(sockPath.utf8.count) bytes, max \(cap)): \(sockPath)")
         }
+
+        // ── Create + bind the socket inside a tightened umask so it materializes 0600 with NO
+        //    window where it is world-connectable (closes the create→chmod TOCTOU). ──────────
+        let oldMask = umask(0o077)
+        defer { umask(oldMask) }
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw RuntimeError("socket() failed: \(String(cString: strerror(errno)))") }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
         _ = withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
             sockPath.withCString { src in
-                strncpy(UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: CChar.self), src, 103)
+                strncpy(UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: CChar.self), src, cap)
             }
         }
         let len = socklen_t(MemoryLayout<sockaddr_un>.size)
@@ -197,8 +256,12 @@ struct Serve: AsyncParsableCommand {
             close(fd)
             throw RuntimeError("bind(\(sockPath)) failed: \(String(cString: strerror(errno)))")
         }
-        // Owner-only: no network exposure, no other-user access (design §2).
-        chmod(sockPath, 0o600)
+        // Belt-and-braces over the umask: explicitly enforce owner-only and FAIL if it doesn't
+        // stick (design §2 — no network exposure, no other-user access).
+        guard chmod(sockPath, 0o600) == 0 else {
+            close(fd); unlink(sockPath)
+            throw RuntimeError("chmod(\(sockPath), 0600) failed: \(String(cString: strerror(errno)))")
+        }
         guard listen(fd, 64) == 0 else {
             close(fd); unlink(sockPath)
             throw RuntimeError("listen() failed: \(String(cString: strerror(errno)))")

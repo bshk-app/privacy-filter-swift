@@ -11,7 +11,8 @@ let package = Package(
     name: "pf",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.21.0"),
+        // ≥ 0.31.4: includes MLX 0.31.2's thread-safety for independent computation (design §3).
+        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.31.4"),
         // Tokenizer (M1). Product "Tokenizers" pulls only Hub (no Models/Generation).
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.3"),
         // CLI flags (C2). AsyncParsableCommand supports the async tokenizer load.

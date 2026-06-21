@@ -87,6 +87,35 @@ PY
 
 client() { python3 -c "$CLIENT" "$SOCK" "$1"; }
 
+# ── Two-frame client: ONE connection, TWO request frames sent sequentially. Reads both
+# responses and prints them separated by a "<<<FRAME2>>>" marker so the shell can split them.
+# Proves per-connection Redactor continuity: stable <CATEGORY_n> tokens persist ACROSS frames.
+read -r -d '' CLIENT2 <<'PY'
+import socket, struct, sys, os
+sock_path, t1, t2 = sys.argv[1], sys.argv[2], sys.argv[3]
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(sock_path)
+def recvn(n):
+    buf = b""
+    while len(buf) < n:
+        chunk = s.recv(n - len(buf))
+        if not chunk: raise SystemExit("server closed mid-frame")
+        buf += chunk
+    return buf
+def roundtrip(text):
+    p = text.encode("utf-8")
+    s.sendall(struct.pack(">I", len(p)) + p)
+    recvn(1)                                   # status (ignored here)
+    length = struct.unpack(">I", recvn(4))[0]
+    return recvn(length).decode("utf-8") if length else ""
+b1 = roundtrip(t1)
+b2 = roundtrip(t2)                             # same connection → same Redactor
+s.close()
+os.write(1, b1.encode("utf-8") + b"\n<<<FRAME2>>>\n" + b2.encode("utf-8"))
+PY
+
+client2() { python3 -c "$CLIENT2" "$SOCK" "$1" "$2"; }
+
 # ── Invariant 1: serve ≡ spawn (byte-identical). ─────────────────────────────────────────
 RESP="$(client "$PROBE")"
 STATUS="$(printf '%s' "$RESP" | head -n1)"
@@ -110,6 +139,37 @@ if printf '%s' "$SERVE_OUT" | grep -qF -- "sk-proj-abc123def456"; then
     echo "  FAIL: raw secret leaked in serve output"; fails=$((fails + 1))
 else
     echo "  ok   : raw secret absent from serve output"
+fi
+
+# ── Invariant 1b: multi-frame continuity — stable tokens persist ACROSS frames on ONE conn.
+# Frame 1 introduces a secret + an email; frame 2 REUSES the same email. Because the same
+# connection keeps one Redactor, the email must map to the SAME <CATEGORY_n> token in both
+# responses (this is what `Serve.swift` threads across frames; nothing tested it before).
+F1='Contact John Smith at john@acme.com key sk-proj-abc123def456'
+F2='ping john@acme.com once more'
+DUAL="$(client2 "$F1" "$F2")"
+DUAL_F1="$(printf '%s' "$DUAL" | sed -n '1,/^<<<FRAME2>>>$/p' | sed '$d')"
+DUAL_F2="$(printf '%s' "$DUAL" | sed -n '/^<<<FRAME2>>>$/,$p' | tail -n +2)"
+
+# Frame 2 reuses ONLY the email, so its output carries exactly the token that masked that
+# email. Continuity means that token is the SAME number assigned in frame 1 (a fresh per-frame
+# Redactor would restart at _1 and could collide/diverge). Pull the token from frame 2 and
+# assert it ALSO appears in frame 1 — i.e. the reused value kept its original frame-1 token.
+F2_TOKEN="$(printf '%s' "$DUAL_F2" | grep -oE '<[A-Z_]+_[0-9]+>' | head -n1)"
+
+if [ -z "$F2_TOKEN" ]; then
+    echo "  FAIL: multi-frame: no <CATEGORY_n> token found in frame 2 output"
+    echo "        frame2='$DUAL_F2'"; fails=$((fails + 1))
+elif printf '%s' "$DUAL_F1" | grep -qF -- "$F2_TOKEN"; then
+    echo "  ok   : multi-frame continuity — reused value keeps token $F2_TOKEN across frames"
+else
+    echo "  FAIL: multi-frame: token $F2_TOKEN in frame 2 was not the one assigned in frame 1"
+    echo "        frame1='$DUAL_F1'"
+    echo "        frame2='$DUAL_F2'"; fails=$((fails + 1))
+fi
+# The reused email must never leak raw in frame 2 (fail-closed across frames).
+if printf '%s' "$DUAL_F2" | grep -qF -- "john@acme.com"; then
+    echo "  FAIL: multi-frame: raw email leaked in frame 2"; fails=$((fails + 1))
 fi
 
 # ── Invariant 2: fairness — big conn A must not starve tiny conn B. ──────────────────────
