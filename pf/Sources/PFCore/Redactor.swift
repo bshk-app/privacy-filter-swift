@@ -8,7 +8,9 @@
 // line by `Array(line.unicodeScalars)` and slice with `String.UnicodeScalarView`.
 // Indexing by `Array(line)` (extended grapheme clusters) would drift by the number of
 // combining marks on multi-byte input and slice the wrong substring — a redactor leak.
-public struct Redactor {
+// All stored properties are value types (Dictionary/Set/String/optional), so a Redactor is
+// safely Sendable — it can cross into the `pf serve` GPU executor actor and back by value.
+public struct Redactor: Sendable {
     /// Token → original value. SENSITIVE: holds raw plaintext values; never serialize to the
     /// same sink as redacted output (e.g. the `--map` task must write this to a separate file).
     public private(set) var map: [String: String] = [:]   // token -> original value

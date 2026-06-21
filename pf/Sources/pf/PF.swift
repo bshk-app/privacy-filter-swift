@@ -28,6 +28,24 @@ import PFModel
 /// original line's content, so a failed line leaks nothing.
 let lineRedactedPlaceholder = "\u{27E6}pf:line-redacted\u{27E7}"  // ⟦pf:line-redacted⟧
 
+/// Redaction options shared by one-shot `pf` and `pf serve` (SSOT). Declared ONCE and
+/// splatted into each command via `@OptionGroup` — this is the idiomatic ArgumentParser
+/// way to share flags across a root command and its subcommands without the option-shadowing
+/// that arises when both declare identically-named options independently.
+struct RedactionOptions: ParsableArguments {
+    @Option(name: .long, help: "Directory holding model.safetensors + config.json + tokenizer.json.")
+    var model = "\(NSHomeDirectory())/.pf/model"
+
+    @Option(parsing: .upToNextOption, help: "Only redact these categories (e.g. secret private_email).")
+    var only: [String] = []
+
+    @Option(parsing: .upToNextOption, help: "Redact everything except these categories.")
+    var except: [String] = []
+
+    @Option(name: .long, help: "Label decoder: 'viterbi' (constrained BIOES, default) or 'argmax' (per-token).")
+    var decoder = "viterbi"
+}
+
 @main
 struct PF: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -39,16 +57,15 @@ struct PF: AsyncParsableCommand {
             Fails closed: on any per-line error the original line is withheld (a placeholder
             is emitted instead) unless --fail-open is given; if the model or tokenizer cannot
             load, pf exits non-zero before reading any input.
-            """)
 
-    @Option(name: .long, help: "Directory holding model.safetensors + config.json + tokenizer.json.")
-    var model = "\(NSHomeDirectory())/.pf/model"
+            Run `pf serve` for a resident daemon (warm model, unix socket, many clients);
+            with no subcommand `pf` is the one-shot stdin→stdout filter described above.
+            """,
+        // `serve` is a subcommand; with NO subcommand the root's own run() (one-shot
+        // stdin→stdout) executes — so existing `printf … | pf` behaviour is unchanged.
+        subcommands: [Serve.self])
 
-    @Option(parsing: .upToNextOption, help: "Only redact these categories (e.g. secret private_email).")
-    var only: [String] = []
-
-    @Option(parsing: .upToNextOption, help: "Redact everything except these categories.")
-    var except: [String] = []
+    @OptionGroup var opts: RedactionOptions
 
     @Option(name: .long, help: "Dump the token→value map (RAW secrets) as JSON to this file (chmod 0600).")
     var map: String?
@@ -56,11 +73,8 @@ struct PF: AsyncParsableCommand {
     @Flag(name: .long, help: "Emit the raw line on a processing error instead of withholding it (UNSAFE; opt-in).")
     var failOpen = false
 
-    @Option(name: .long, help: "Label decoder: 'viterbi' (constrained BIOES, default) or 'argmax' (per-token).")
-    var decoder = "viterbi"
-
     mutating func run() async throws {
-        let modelDir = URL(fileURLWithPath: model)
+        let modelDir = URL(fileURLWithPath: opts.model)
 
         // ── Load model + tokenizer ONCE, before any stdin is read. ──────────────────
         // If either throws, the error propagates out of run(): ArgumentParser prints it
@@ -82,8 +96,8 @@ struct PF: AsyncParsableCommand {
         // The pipeline is the per-line core shared with `pf serve`; the Redactor carries
         // stable-token state (same value → same token) across lines, so both are created
         // here and reused — never recreated per line.
-        let pipeline = RedactPipeline(tok: tok, model: pfModel, labels: labels, decoder: decoder)
-        var redactor = Redactor(only: only.isEmpty ? nil : only, except: except)
+        let pipeline = RedactPipeline(tok: tok, model: pfModel, labels: labels, decoder: opts.decoder)
+        var redactor = Redactor(only: opts.only.isEmpty ? nil : opts.only, except: opts.except)
 
         // ── Streaming loop. ─────────────────────────────────────────────────────────
         while let line = readLine(strippingNewline: true) {
