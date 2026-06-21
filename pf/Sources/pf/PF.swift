@@ -21,7 +21,6 @@
 
 import ArgumentParser
 import Foundation
-import MLX
 import PFCore
 import PFModel
 
@@ -78,18 +77,19 @@ struct PF: AsyncParsableCommand {
             throw RuntimeError("failed to load model/tokenizer from \(modelDir.path): \(error)")
         }
         let labels = pfModel.hp.labels
-        let nCls = labels.count
 
-        // ── ONE Redactor for the whole stream. ──────────────────────────────────────
-        // Stable tokens must persist across lines (same value → same token), so it is
-        // created here and reused — never recreated per line.
+        // ── ONE pipeline + ONE Redactor for the whole stream. ───────────────────────
+        // The pipeline is the per-line core shared with `pf serve`; the Redactor carries
+        // stable-token state (same value → same token) across lines, so both are created
+        // here and reused — never recreated per line.
+        let pipeline = RedactPipeline(tok: tok, model: pfModel, labels: labels, decoder: decoder)
         var redactor = Redactor(only: only.isEmpty ? nil : only, except: except)
 
         // ── Streaming loop. ─────────────────────────────────────────────────────────
         while let line = readLine(strippingNewline: true) {
             let out: String
             do {
-                out = try redactLine(line, tok: tok, model: pfModel, labels: labels, nCls: nCls, &redactor)
+                out = try pipeline.redactLine(line, into: &redactor)
             } catch {
                 // Fail-closed: the line could not be processed. Do NOT emit it raw.
                 logStderr("pf: line withheld (\(error))")
@@ -104,35 +104,6 @@ struct PF: AsyncParsableCommand {
             try writeMap(redactor.map, to: mapPath)
         }
     }
-
-    /// Process a single line into its redacted form. Throws on any failure so the caller
-    /// can apply the fail-closed policy (the line is never emitted raw from here).
-    private func redactLine(
-        _ line: String, tok: PFTokenizer, model: Model,
-        labels: [String], nCls: Int, _ redactor: inout Redactor
-    ) throws -> String {
-        let (ids, offsets) = try tok.encode(line)
-        // An empty/whitespace-only line tokenizes to no ids; it carries no entities and
-        // running the forward on a zero-length sequence is undefined. Pass it through the
-        // redactor with no spans (returns the line unchanged) — safe by construction.
-        guard !ids.isEmpty else {
-            return redactor.redact(line, spans: [])
-        }
-        let flat = model.logits(ids).asType(.float32).asArray(Float.self)   // [n*C], row-major
-        // Constrained Viterbi (default) decodes the best LEGAL BIOES path → coherent, same-type
-        // spans; 'argmax' is the per-token baseline (kept for A/B measurement via eval_prf.py).
-        let lineLabels = decoder == "argmax"
-            ? argmaxLabels(flat, nCls: nCls, labels: labels)
-            : viterbiLabels(flat, nCls: nCls, labels: labels)
-        // Belt-and-suspenders: labels (one per token row) and offsets (one per id) must be
-        // 1:1. A model/tokenizer desync would otherwise let bioesToSpans index past offsets
-        // and trap (uncatchable). Throwing here turns it into a CAUGHT fail-closed line.
-        guard lineLabels.count == offsets.count else {
-            throw RuntimeError("internal: \(lineLabels.count) labels vs \(offsets.count) offsets")
-        }
-        let spans = bioesToSpans(labels: lineLabels, offsets: offsets)
-        return redactor.redact(line, spans: spans)
-    }
 }
 
 /// A simple error with a clean message (no Swift type noise) for the fail-closed exit path.
@@ -140,21 +111,6 @@ struct RuntimeError: Error, CustomStringConvertible {
     let message: String
     init(_ message: String) { self.message = message }
     var description: String { message }
-}
-
-/// Argmax each row of the n×C logits (flat, row-major) and map to its label.
-/// Mirrors pf-parity's argmax.
-func argmaxLabels(_ flat: [Float], nCls: Int, labels: [String]) -> [String] {
-    guard nCls > 0 else { return [] }
-    let n = flat.count / nCls
-    var result = [String](); result.reserveCapacity(n)
-    for i in 0..<n {
-        var best = 0
-        let base = i * nCls
-        for c in 1..<nCls where flat[base + c] > flat[base + best] { best = c }
-        result.append(labels[best])
-    }
-    return result
 }
 
 /// Write the token→value map as pretty JSON to `path` with owner-only (0600) permissions.
