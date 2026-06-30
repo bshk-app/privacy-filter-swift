@@ -14,11 +14,10 @@ need the full Xcode toolchain; `swift build` can't compile the metallib). Ships 
 **To ship it:** copy `homebrew/pf.rb` to `Formula/pf.rb` in the `beshkenadze/homebrew-tap` repo,
 fill `url`/`sha256` for a tagged source tarball, and `brew install beshkenadze/tap/pf`.
 
-> **⚠️ Distribution decision (unresolved):** `privacy-filter-swift` is **private**, so a public
-> tap can't fetch its source tarball. Pick one:
-> - **(a)** make the repo public, then `url` the tagged `…/archive/refs/tags/pf-vX.Y.Z.tar.gz`;
-> - **(b)** keep it private, use a **private tap**, and `brew install` with a `HOMEBREW_GITHUB_API_TOKEN`;
-> - **(c)** attach a public **source-tarball Release asset** and `url` that.
+> **Distribution: resolved → the repo is PUBLIC.** The source-tarball `url` works once a release
+> is tagged. Remaining steps to ship: `git push origin main`, create a tag `pf-vX.Y.Z`, fill the
+> formula's `url` + `sha256` (`shasum -a 256` of `…/archive/refs/tags/pf-vX.Y.Z.tar.gz`), and copy
+> `homebrew/pf.rb` to `Formula/pf.rb` in `beshkenadze/homebrew-tap`.
 
 ### `brew style` note
 Running `brew style homebrew/pf.rb` **standalone** reports 4 offenses (Sorbet sigils,

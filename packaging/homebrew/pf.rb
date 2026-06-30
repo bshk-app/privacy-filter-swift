@@ -6,12 +6,10 @@
 # Phase 2 (a Developer ID-notarized prebuilt) ships as a CASK, not a bottle
 # (Homebrew re-signs relocated bottles ad-hoc, which would strip notarization).
 #
-# ⚠️ DISTRIBUTION DECISION (privacy-filter-swift is currently PRIVATE):
-#   A public tap cannot fetch a tarball from a private repo without auth. Pick one:
-#     (a) make privacy-filter-swift public, then `url` the tagged source tarball (below);
-#     (b) keep private + use a private tap and `brew install` with a GITHUB token; or
-#     (c) attach a source tarball as a public Release asset and `url` that.
-#   The `url`/`sha256` below assume (a)/(c): a tagged, publicly-fetchable source tarball.
+# DISTRIBUTION: privacy-filter-swift is PUBLIC, so the source-tarball `url` below works
+# once a release is tagged. To ship: push `main`, create a tag `pf-vX.Y.Z`, then fill
+# `url` + `sha256` (`shasum -a 256` of `.../archive/refs/tags/pf-vX.Y.Z.tar.gz`) and copy
+# this file to `Formula/pf.rb` in the beshkenadze/homebrew-tap repo.
 
 class Pf < Formula
   desc "On-device PII/secret redactor: stdin-stdout filter plus resident daemon"
