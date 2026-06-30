@@ -93,13 +93,16 @@ struct Serve: AsyncParsableCommand {
         // ── Load model + tokenizer ONCE, before binding. Fail-closed: a load failure exits
         //    non-zero here, BEFORE the socket exists, so no client can ever connect to a
         //    daemon that cannot redact. ───────────────────────────────────────────────────
+        // Explicit --model wins; otherwise resolve from the canonical HF cache (`pf pull`).
+        // A missing model fails closed here, BEFORE the socket exists.
+        let modelDir = try opts.resolvedModelDir()
         let pfModel: Model
         let tok: PFTokenizer
         do {
-            pfModel = try Model(modelDir: URL(fileURLWithPath: opts.model), qbits: 4, qgroup: 64, qembed: 8)
-            tok = try await PFTokenizer(modelDir: URL(fileURLWithPath: opts.model))
+            pfModel = try Model(modelDir: URL(fileURLWithPath: modelDir), qbits: 4, qgroup: 64, qembed: 8)
+            tok = try await PFTokenizer(modelDir: URL(fileURLWithPath: modelDir))
         } catch {
-            throw RuntimeError("failed to load model/tokenizer from \(opts.model): \(error)")
+            throw RuntimeError("failed to load model/tokenizer from \(modelDir): \(error)")
         }
         let pipeline = RedactPipeline(tok: tok, model: pfModel, labels: pfModel.hp.labels, decoder: opts.decoder)
         let executor = GPUExecutor(pipeline: pipeline)

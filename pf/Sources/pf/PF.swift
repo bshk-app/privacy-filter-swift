@@ -28,13 +28,25 @@ import PFModel
 /// original line's content, so a failed line leaks nothing.
 let lineRedactedPlaceholder = "\u{27E6}pf:line-redacted\u{27E7}"  // ⟦pf:line-redacted⟧
 
+/// Sentinel default for `--model`. When `opts.model` still equals this, the user did NOT pass
+/// `--model`, so we resolve the model dir from the canonical HF cache (`pf pull` layout). An
+/// explicit `--model <dir>` (any other value) always wins — keeping dev invocations working.
+/// Declared ONCE here so the option default and the "was-it-overridden?" check share an SSOT.
+let defaultModelFlag = "<hf-cache>"
+
 /// Redaction options shared by one-shot `pf` and `pf serve` (SSOT). Declared ONCE and
 /// splatted into each command via `@OptionGroup` — this is the idiomatic ArgumentParser
 /// way to share flags across a root command and its subcommands without the option-shadowing
 /// that arises when both declare identically-named options independently.
 struct RedactionOptions: ParsableArguments {
-    @Option(name: .long, help: "Directory holding model.safetensors + config.json + tokenizer.json.")
-    var model = "\(NSHomeDirectory())/.pf/model"
+    @Option(name: .long, help: "Model dir (config.json + model.safetensors + tokenizer.json). Default: resolve from the HF cache (`pf pull`).")
+    var model = defaultModelFlag
+
+    /// Concrete model dir to load: an explicit `--model <dir>` as-is, else resolved from the
+    /// canonical HF cache (fail-closed `run \`pf pull\`` if the model is not cached).
+    func resolvedModelDir() throws -> String {
+        try resolveModelDir(modelFlag: model, defaultFlag: defaultModelFlag)
+    }
 
     @Option(parsing: .upToNextOption, help: "Only redact these categories (e.g. secret private_email).")
     var only: [String] = []
@@ -61,9 +73,9 @@ struct PF: AsyncParsableCommand {
             Run `pf serve` for a resident daemon (warm model, unix socket, many clients);
             with no subcommand `pf` is the one-shot stdin→stdout filter described above.
             """,
-        // `serve` is a subcommand; with NO subcommand the root's own run() (one-shot
+        // `serve`/`pull` are subcommands; with NO subcommand the root's own run() (one-shot
         // stdin→stdout) executes — so existing `printf … | pf` behaviour is unchanged.
-        subcommands: [Serve.self])
+        subcommands: [Serve.self, Pull.self])
 
     @OptionGroup var opts: RedactionOptions
 
@@ -74,7 +86,9 @@ struct PF: AsyncParsableCommand {
     var failOpen = false
 
     mutating func run() async throws {
-        let modelDir = URL(fileURLWithPath: opts.model)
+        // Resolve the model dir BEFORE any stdin is read: explicit --model wins, otherwise the
+        // canonical HF cache (`pf pull`). A missing model fails closed here (no stdin consumed).
+        let modelDir = URL(fileURLWithPath: try opts.resolvedModelDir())
 
         // ── Load model + tokenizer ONCE, before any stdin is read. ──────────────────
         // If either throws, the error propagates out of run(): ArgumentParser prints it
