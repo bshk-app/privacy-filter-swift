@@ -21,12 +21,14 @@
 //   • Per-line fail-closed EXACTLY like one-shot: a line that can't be processed becomes
 //     the placeholder (never emitted raw). --fail-open is out of scope for the serve MVP.
 //
-// Lock / --force / stale-socket reclaim is Task 4 — here a pre-existing socket path is a
-// hard error (stub). Micro-batching (design §3 C) is deferred.
+// Startup lifecycle (Task 4, design §4) lives in Lock.swift + acquireListener(): an flock around
+// the start, a liveness probe of any existing socket, decideStart() (PFCore) → bind / already-
+// running / displace / reclaim, a pidfile, and --force. A stale socket self-heals; --force always
+// wins; two daemons never share one socket. Micro-batching (design §3 C) is deferred.
 //
 // SHUTDOWN: SIGINT/SIGTERM hard-exit WITHOUT draining in-flight connections (the handler only
-// unlinks the socket and _exit()s — async-signal-safe). Graceful drain (design §4) is deferred
-// to Task 4.
+// unlinks the socket + pidfile and _exit()s — async-signal-safe). Graceful drain (design §4)
+// is deferred.
 
 import ArgumentParser
 import Darwin
@@ -82,6 +84,9 @@ struct Serve: AsyncParsableCommand {
     @Option(name: .long, help: "Unix socket path (default $PF_SOCK ▸ ~/.pf/pf.sock).")
     var sock: String?
 
+    @Flag(name: .long, help: "Displace a live/wedged daemon already on the socket (SIGTERM it, take over).")
+    var force = false
+
     mutating func run() async throws {
         let sockPath = Self.resolveSockPath(sock)
 
@@ -101,12 +106,15 @@ struct Serve: AsyncParsableCommand {
 
         // ── Install the cleanup handler BEFORE bind so a Ctrl-C during startup can't orphan
         //    the socket file. Unlinking a not-yet-created path is harmless (the handler only
-        //    unlink()s + _exit()s — async-signal-safe). ──────────────────────────────────────
-        installSignalCleanup(sockPath: sockPath)
+        //    unlink()s + _exit()s — async-signal-safe). The pidfile path is registered too so
+        //    a clean shutdown removes sock + pid (design §4). ──────────────────────────────────
+        let runtimeDir = (sockPath as NSString).deletingLastPathComponent
+        installSignalCleanup(sockPath: sockPath, pidPath: "\(runtimeDir)/pf.pid")
 
-        // ── Bind. (Lock/--force/stale-reclaim is Task 4 — for now a pre-existing path is a
-        //    hard error.) ──────────────────────────────────────────────────────────────────
-        let listenFD = try Self.bind(sockPath: sockPath)
+        // ── Start lifecycle (design §4): flock, probe the existing socket, decide bind /
+        //    already-running / displace / reclaim, then bind + write the pidfile. A stale
+        //    socket self-heals; --force always wins; two daemons never share one socket. ──────
+        let listenFD = try Self.acquireListener(sockPath: sockPath, force: force)
         logStderr("pf serve: listening on \(sockPath) (pid \(getpid()))")
 
         // ── Accept loop. Each connection → its own Task with a fresh Redactor. ─────────────
@@ -201,19 +209,20 @@ struct Serve: AsyncParsableCommand {
         return "\(NSHomeDirectory())/.pf/pf.sock"
     }
 
-    /// Create the parent dir (0700), bind a unix socket at `sockPath` (0600), and listen.
-    /// Returns the listening fd. Throws on any failure (fail-closed before serving). A
-    /// pre-existing socket path is a hard error here (lock/reclaim is Task 4).
-    private static func bind(sockPath: String) throws -> Int32 {
+    /// Thrown by `bindOnly` when bind() fails with EADDRINUSE specifically — a zombie still holds
+    /// the path after the unlink. The caller distinguishes this (escalate to --force / error) from
+    /// any other bind failure (a hard, non-recoverable error).
+    struct AddrInUse: Error {}
+
+    /// Ensure the runtime dir exists (0700). Called before any probe/bind so the lockfile,
+    /// socket, and pidfile have a home with owner-only perms (design §4: `~/.pf/` dir 0700).
+    /// For an explicit --sock in a SHARED dir we don't own (/tmp, XDG runtime), tightening is
+    /// best-effort — not pf's dir to lock down, and the socket itself is still 0600.
+    static func prepareRuntimeDir(for sockPath: String) throws -> String {
         let dir = (sockPath as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
-        // createDirectory's posixPermissions only applies to dirs it CREATES; a pre-existing
-        // ~/.pf could be looser. The pf runtime dir holds the socket (and will hold pid/log/map),
-        // so force it 0700 — hard error if that doesn't stick. For an explicit --sock pointing
-        // at a SHARED dir we don't own (e.g. /tmp, an XDG runtime dir), chmod is best-effort:
-        // it's not pf's dir to tighten, and the socket itself is still locked down to 0600 below.
         let defaultDir = "\(NSHomeDirectory())/.pf"
         if chmod(dir, 0o700) != 0 {
             let e = errno
@@ -222,10 +231,15 @@ struct Serve: AsyncParsableCommand {
             }
             logStderr("pf serve: chmod(\(dir), 0700) failed (\(String(cString: strerror(e)))) — not the pf runtime dir, continuing")
         }
+        return dir
+    }
 
-        if FileManager.default.fileExists(atPath: sockPath) {
-            throw RuntimeError("socket path already exists: \(sockPath) (lock/--force is Task 4 — remove it or pass --sock)")
-        }
+    /// Create a unix socket at `sockPath` (0600), bind it, and listen. Returns the listening fd.
+    /// Assumes the path is free (the caller has already unlinked any stale socket). A bind that
+    /// fails with EADDRINUSE throws `AddrInUse` so the caller can escalate; any other failure is
+    /// a hard `RuntimeError`. The umask window keeps the socket 0600 from creation (no world-
+    /// connectable window), and chmod 0600 is enforced belt-and-braces (design §2).
+    static func bindOnly(sockPath: String) throws -> Int32 {
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
         // sun_path is a fixed C array; reserve one byte for the NUL terminator. Derive the cap
@@ -235,8 +249,6 @@ struct Serve: AsyncParsableCommand {
             throw RuntimeError("socket path too long (\(sockPath.utf8.count) bytes, max \(cap)): \(sockPath)")
         }
 
-        // ── Create + bind the socket inside a tightened umask so it materializes 0600 with NO
-        //    window where it is world-connectable (closes the create→chmod TOCTOU). ──────────
         let oldMask = umask(0o077)
         defer { umask(oldMask) }
 
@@ -253,11 +265,11 @@ struct Serve: AsyncParsableCommand {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, len) }
         }
         guard bound == 0 else {
+            let e = errno
             close(fd)
-            throw RuntimeError("bind(\(sockPath)) failed: \(String(cString: strerror(errno)))")
+            if e == EADDRINUSE { throw AddrInUse() }
+            throw RuntimeError("bind(\(sockPath)) failed: \(String(cString: strerror(e)))")
         }
-        // Belt-and-braces over the umask: explicitly enforce owner-only and FAIL if it doesn't
-        // stick (design §2 — no network exposure, no other-user access).
         guard chmod(sockPath, 0o600) == 0 else {
             close(fd); unlink(sockPath)
             throw RuntimeError("chmod(\(sockPath), 0600) failed: \(String(cString: strerror(errno)))")
@@ -267,6 +279,61 @@ struct Serve: AsyncParsableCommand {
             throw RuntimeError("listen() failed: \(String(cString: strerror(errno)))")
         }
         return fd
+    }
+
+    /// Run the full start lifecycle (design §4) under an flock and return the listening fd:
+    ///   1. flock ~/.pf/pf.lock (serialize two simultaneous starts; released on exit).
+    ///   2. Probe the existing socket → decideStart({responsive, force}).
+    ///   3. .alreadyRunning → print + exit non-zero. .displace → SIGTERM the pid, wait, reclaim.
+    ///      .reclaim/.bind → unlink any stale socket, bind. EADDRINUSE after unlink: require
+    ///      --force (else error); with --force, displace then retry.
+    /// On success the pidfile is written and the lock released. Throws (fail-closed) on any error.
+    static func acquireListener(sockPath: String, force: Bool) throws -> Int32 {
+        let runtimeDir = try prepareRuntimeDir(for: sockPath)
+        let lock = try StartLock(runtimeDir: runtimeDir)
+        defer { lock.release() }  // hold the lock across probe→decide→bind, release once bound
+
+        let responsive = socketResponsive(at: sockPath)
+        switch decideStart(socketResponsive: responsive, force: force) {
+        case .alreadyRunning:
+            let pidStr = lock.readPid().map(String.init) ?? "unknown"
+            logStderr("pf serve: already running (pid \(pidStr)) — pass --force to displace")
+            throw ExitCode.failure
+
+        case .displace:
+            logStderr("pf serve: --force — displacing live daemon (pid \(lock.readPid().map(String.init) ?? "unknown")) on \(sockPath)")
+            if !displaceDaemon(pid: lock.readPid(), sockPath: sockPath) {
+                logStderr("pf serve: WARNING — daemon still responding after SIGTERM; reclaiming anyway")
+            }
+            fallthrough
+
+        case .reclaim, .bind:
+            // Nobody's answering (stale/crashed or never existed) → unlink any lingering socket
+            // and bind. This self-heals the crashed-daemon case with no --force needed.
+            if FileManager.default.fileExists(atPath: sockPath) {
+                if responsive {
+                    logStderr("pf serve: reclaiming socket \(sockPath)")
+                } else {
+                    logStderr("pf serve: stale socket at \(sockPath) — auto-reclaiming")
+                }
+                unlink(sockPath)
+            }
+            let fd: Int32
+            do {
+                fd = try bindOnly(sockPath: sockPath)
+            } catch is AddrInUse {
+                // A zombie still holds the path even after unlink. Without --force we must not
+                // guess; with --force, escalate to displace then retry once.
+                guard force else {
+                    throw RuntimeError("socket busy and unresponsive — rerun with --force")
+                }
+                _ = displaceDaemon(pid: lock.readPid(), sockPath: sockPath)
+                unlink(sockPath)
+                fd = try bindOnly(sockPath: sockPath)
+            }
+            lock.writePid()
+            return fd
+        }
     }
 
     // MARK: - I/O + lifecycle helpers
@@ -285,11 +352,12 @@ struct Serve: AsyncParsableCommand {
         }
     }
 
-    /// Install SIGINT/SIGTERM handlers that unlink the socket and exit cleanly. Uses a
-    /// process-global path (a C signal handler can't capture Swift state). exit() inside a
-    /// handler is acceptable here: shutdown only needs to remove the socket file.
-    private func installSignalCleanup(sockPath: String) {
+    /// Install SIGINT/SIGTERM handlers that unlink the socket + pidfile and exit cleanly. Uses
+    /// process-global paths (a C signal handler can't capture Swift state). exit() inside a
+    /// handler is acceptable here: shutdown only needs to remove the socket + pidfile.
+    private func installSignalCleanup(sockPath: String, pidPath: String) {
         signalSockPath = strdup(sockPath)
+        signalPidPath = strdup(pidPath)
         signal(SIGINT, pfServeSignalHandler)
         signal(SIGTERM, pfServeSignalHandler)
     }
@@ -300,9 +368,14 @@ struct Serve: AsyncParsableCommand {
 /// The socket path to unlink on signal. Set once at startup; read only inside the handler.
 private nonisolated(unsafe) var signalSockPath: UnsafeMutablePointer<CChar>?
 
-/// async-signal-safe cleanup: unlink the socket and exit. Only calls unlink()/_exit(),
+/// The pidfile path to unlink on signal (design §4: clean shutdown removes sock + pid). Set
+/// once the pidfile is written; nil before then. Read only inside the handler.
+private nonisolated(unsafe) var signalPidPath: UnsafeMutablePointer<CChar>?
+
+/// async-signal-safe cleanup: unlink the socket + pidfile and exit. Only calls unlink()/_exit(),
 /// both of which are async-signal-safe.
 private func pfServeSignalHandler(_ sig: Int32) {
     if let p = signalSockPath { unlink(p) }
+    if let p = signalPidPath { unlink(p) }
     _exit(0)
 }
