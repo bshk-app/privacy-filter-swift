@@ -1,0 +1,6 @@
+# Exclude dev-only trees from the `git archive` source tarball that Homebrew builds from
+# (they stay in the repo — just not shipped in the release tarball the formula downloads).
+#   docs/      — design + implementation plans
+#   reference/ — Python oracle (parity SSOT) + accuracy-eval harnesses (not in the Swift build)
+/docs export-ignore
+/reference export-ignore
