@@ -4,7 +4,8 @@
 // dedups with — and is visible to — the user's existing cache:
 //
 //     <base>/models--beshkenadze--privacy-filter-mlx/
-//       ├── blobs/<etag>                          (content-addressed, atomic temp→rename)
+//       ├── blobs/<etag>                          (content-addressed; written via <etag>.incomplete,
+//       │                                          then atomic same-volume rename → final)
 //       ├── snapshots/<commit>/<path>             (RELATIVE symlink into ../…/blobs/<etag>)
 //       └── refs/main                             (40-char commit sha, NO trailing newline)
 //
@@ -95,7 +96,16 @@ private final class RedirectCapturingDelegate: NSObject, URLSessionTaskDelegate,
                     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {
         if captured == nil, let m = Self.parseMeta(response) { captured = m }
-        completionHandler(request)  // follow the redirect to fetch the body
+        // SECURITY: the hub 302/307-redirects `resolve/main` to a DIFFERENT LFS-CDN host.
+        // URLSession re-sends `Authorization: Bearer <hf-token>` on the new request by default,
+        // leaking the token to that CDN. Strip it whenever the redirect target host differs from
+        // the ORIGINAL request host (compare against the original, not the previous hop), mirroring
+        // huggingface_hub which only carries auth on same-host/relative redirects.
+        var req = request
+        if req.url?.host != task.originalRequest?.url?.host {
+            req.setValue(nil, forHTTPHeaderField: "Authorization")
+        }
+        completionHandler(req)  // follow the redirect to fetch the body (auth stripped cross-host)
     }
 
     /// Pull commit + etag out of a hub response. Returns nil if the commit is absent (e.g. a
@@ -108,16 +118,10 @@ private final class RedirectCapturingDelegate: NSObject, URLSessionTaskDelegate,
     }
 
     /// Case-insensitive header lookup (HTTP headers are case-insensitive; URLSession preserves
-    /// server casing, which varies between the hub and the CDN).
+    /// server casing, which varies between the hub and the CDN). `value(forHTTPHeaderField:)`
+    /// is case-insensitive and available on the macOS .v14 deployment target, so no fallback.
     static func header(_ response: HTTPURLResponse, _ name: String) -> String? {
-        if #available(macOS 10.15, *) {
-            return response.value(forHTTPHeaderField: name)
-        }
-        let lower = name.lowercased()
-        for (k, v) in response.allHeaderFields {
-            if (k as? String)?.lowercased() == lower { return v as? String }
-        }
-        return nil
+        response.value(forHTTPHeaderField: name)
     }
 }
 
@@ -129,8 +133,10 @@ struct Pull: AsyncParsableCommand {
             Writes the same blobs/snapshots/refs layout the python `hf` CLI uses, so the model
             dedups with and is visible to huggingface_hub. Resolves the cache base from
             $HF_HUB_CACHE ▸ $HF_HOME/hub ▸ ~/.cache/huggingface/hub (override with --cache).
-            Blobs are content-addressed (etag) and written atomically; an already-present blob
-            is skipped (resume-friendly). `pf` / `pf serve` then find the model in that cache.
+            Blobs are content-addressed (etag): each is written to <etag>.incomplete then atomically
+            renamed into place on the cache volume, so a partial download never looks complete. An
+            already-present blob is skipped (resume is blob-granularity, not HTTP Range). `pf` /
+            `pf serve` then find the model in that cache.
             """)
 
     @Option(name: .long, help: "Variant to pull: 'q4-8emb' (default, ~870 MB quantized) or 'bf16'.")
@@ -173,7 +179,11 @@ struct Pull: AsyncParsableCommand {
         }
 
         // refs/main = commit sha, NO trailing newline (byte-identical to huggingface_hub).
-        if let commit {
+        // Only advertise a complete commit on an UNFILTERED pull: a metadata-only `--include`
+        // pull downloads a SUBSET of the variant, so writing refs/main would make an incomplete
+        // snapshot resolve as present (the model load would then fail on a missing weight). With
+        // no refs/main, resolveModelDirFromCache fails closed cleanly until a full `pf pull`.
+        if include.isEmpty, let commit {
             let refsMain = "\(repoDir)/refs/main"
             try Data(commit.utf8).write(to: URL(fileURLWithPath: refsMain), options: .atomic)
         }
@@ -196,7 +206,14 @@ struct Pull: AsyncParsableCommand {
             throw RuntimeError("pull \(path): non-HTTP response")
         }
         guard http.statusCode == 200 else {
-            throw RuntimeError("pull \(path): HTTP \(http.statusCode)")
+            // One-line hint for the common auth/missing cases. No blob/refs written on error.
+            let hint: String
+            switch http.statusCode {
+            case 401, 403: hint = " (check ~/.cache/huggingface/token)"
+            case 404:      hint = " (repo/file missing or private)"
+            default:       hint = ""
+            }
+            throw RuntimeError("pull \(path): HTTP \(http.statusCode)\(hint)")
         }
         // Prefer the metadata captured pre-redirect; fall back to the final response for files
         // served inline by the hub (no CDN redirect → commit+etag are on the 200 itself).
@@ -209,9 +226,21 @@ struct Pull: AsyncParsableCommand {
         if fm.fileExists(atPath: blobPath) {
             logStderr("  skip  \(path) (blob present)")
         } else {
-            // Atomic: rename the downloaded temp file onto the content-addressed blob path.
-            // (download(for:) already streamed the body to tmpURL; one rename, no re-read.)
-            try fm.moveItem(at: tmpURL, to: URL(fileURLWithPath: blobPath))
+            // Atomic blob write — never leave a partial blob at the content-addressed path.
+            // The URLSession temp may live on a different volume than the cache (e.g. cache on
+            // /Volumes/DATA), so `moveItem` there is a non-atomic copy-then-delete: an interruption
+            // mid-copy would leave a PARTIAL file at blobs/<etag> that the fileExists skip then
+            // trusts forever (corrupt weights). So we copy to blobs/<etag>.incomplete first — a name
+            // that can NEVER satisfy the fileExists(blobs/<etag>) skip — and only after the full body
+            // is in place do a SAME-FILESYSTEM atomic rename .incomplete → final. A partial download
+            // can thus never become a "complete" blob. (download(for:) already streamed the full body
+            // to tmpURL; one move + one rename, no re-read.)
+            let incompletePath = blobPath + ".incomplete"
+            let incompleteURL = URL(fileURLWithPath: incompletePath)
+            try? fm.removeItem(at: incompleteURL)  // overwrite any stale pre-existing .incomplete
+            try fm.moveItem(at: tmpURL, to: incompleteURL)
+            // Atomic rename within the cache volume: .incomplete → final blob path.
+            try fm.moveItem(at: incompleteURL, to: URL(fileURLWithPath: blobPath))
             logStderr("  pull  \(path) → blobs/\(String(meta.etag.prefix(12)))…")
         }
 
@@ -219,9 +248,10 @@ struct Pull: AsyncParsableCommand {
         let snapPath = "\(repoDir)/snapshots/\(meta.commit)/\(path)"
         try fm.createDirectory(atPath: (snapPath as NSString).deletingLastPathComponent,
                                withIntermediateDirectories: true)
-        if let info = try? fm.attributesOfItem(atPath: snapPath), info[.type] != nil {
-            try? fm.removeItem(atPath: snapPath)  // replace a stale link
-        }
+        // Clear ANY pre-existing link first (live OR dangling) so re-pull is idempotent.
+        // attributesOfItem follows the link, so it can't see a dangling one — removeItem on the
+        // path is a no-follow unlink that clears either, avoiding an EEXIST from createSymbolicLink.
+        try? fm.removeItem(atPath: snapPath)
         let target = blobSymlinkTarget(relPath: path, etag: meta.etag)
         try fm.createSymbolicLink(atPath: snapPath, withDestinationPath: target)
 
@@ -246,9 +276,15 @@ func loadHubToken() -> String? {
 
 // ── Model resolution (used by `pf` and `pf serve`) ──────────────────────────────────────
 
+/// The files every variant must contain to be loadable (config + weights + tokenizer).
+private let requiredModelFiles = ["config.json", "model.safetensors", "tokenizer.json"]
+
 /// Resolve the model directory for a variant from the canonical hub cache:
 ///   read `refs/main` → `snapshots/<commit>/<variant>/`.
-/// Returns nil if the cache, ref, or snapshot dir is absent (caller fails closed).
+/// Returns nil if the cache, ref, or snapshot dir is absent, OR if the snapshot is INCOMPLETE —
+/// any required file missing, or a snapshot symlink that does not resolve to a real file (a
+/// metadata-only/interrupted pull). The caller then fails closed with `run \`pf pull\`` rather
+/// than surfacing an opaque model-load error later.
 func resolveModelDirFromCache(variant: String, cacheBase override: String? = nil) -> String? {
     let base = resolveHubCacheBase(override)
     let repoDir = "\(base)/\(hubRepoFolder(pfRepoId))"
@@ -260,9 +296,16 @@ func resolveModelDirFromCache(variant: String, cacheBase override: String? = nil
     let modelDir = variant == "bf16"
         ? "\(repoDir)/snapshots/\(commit)"
         : "\(repoDir)/snapshots/\(commit)/\(variant)"
+    let fm = FileManager.default
     var isDir: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: modelDir, isDirectory: &isDir), isDir.boolValue else {
+    guard fm.fileExists(atPath: modelDir, isDirectory: &isDir), isDir.boolValue else {
         return nil
+    }
+    // Each required file must exist AND its snapshot symlink must resolve to a real file.
+    // `fileExists` follows symlinks, so a dangling link reports false here → incomplete.
+    for file in requiredModelFiles {
+        let p = "\(modelDir)/\(file)"
+        guard fm.fileExists(atPath: p) else { return nil }
     }
     return modelDir
 }

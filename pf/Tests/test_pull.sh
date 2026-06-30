@@ -11,10 +11,15 @@
 # Asserts, under an ISOLATED cache (--cache /tmp/…):
 #   1. blobs/<etag> exists (content-addressed),
 #   2. snapshots/<commit>/q4-8emb/config.json is a SYMLINK that resolves to a real file,
-#   3. refs/main contains the 40-char commit sha,
-#   4. CROSS-COMPAT: python huggingface_hub's try_to_load_from_cache() sees the file as CACHED
-#      (this is the real proof the layout IS the huggingface_hub format — python is allowed
-#       here because this is a dev harness, NOT the shipped code path).
+#   3. a metadata-only `--include` pull does NOT write refs/main (M1: an incomplete snapshot
+#      must not advertise a complete commit),
+#   4. I3 FAIL-CLOSED: a bare `pf` (no --model) against this metadata-only cache resolves
+#      FAIL-CLOSED with `run `pf pull`` — an incomplete snapshot is NOT treated as present,
+#      and the error is the clean resolution message, NOT an opaque model-load error,
+#   5. CROSS-COMPAT: with a refs/main pointing at the discovered commit, python huggingface_hub's
+#      try_to_load_from_cache() sees the file as CACHED (the real proof the layout IS the
+#      huggingface_hub format — python is allowed here because this is a dev harness, NOT the
+#      shipped code path).
 #
 # Prints `PULL OK` / `PULL FAIL`, exits 0/1, cleans up the temp cache.
 
@@ -50,14 +55,19 @@ fi
 
 REPO_DIR="$CACHE/$REPO_DIR_NAME"
 
+# Discover the commit from the snapshot dir — refs/main is intentionally ABSENT after a
+# metadata-only pull (M1), so we cannot read it here.
+COMMIT="$(basename "$(find "$REPO_DIR/snapshots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)" 2>/dev/null || true)"
+
 # ── 1. blobs/<etag> exists. ──────────────────────────────────────────────────────────────
 blob_count=$(find "$REPO_DIR/blobs" -type f 2>/dev/null | wc -l | tr -d ' ')
 if [ "$blob_count" -ge 1 ]; then ok "blobs/ has $blob_count content-addressed blob(s)";
 else fail "no blobs written under $REPO_DIR/blobs"; fi
 
 # ── 2. snapshots/<commit>/q4-8emb/config.json is a symlink resolving to a real file. ─────
-COMMIT="$(cat "$REPO_DIR/refs/main" 2>/dev/null || true)"
 SNAP_CONFIG="$REPO_DIR/snapshots/$COMMIT/q4-8emb/config.json"
+if [ "${#COMMIT}" -eq 40 ]; then ok "snapshot commit = $COMMIT (40 chars)";
+else fail "snapshot commit dir is not a 40-char sha (got '${COMMIT}')"; fi
 if [ -L "$SNAP_CONFIG" ]; then
     ok "snapshots/$COMMIT/q4-8emb/config.json is a symlink ($(readlink "$SNAP_CONFIG"))"
     if [ -f "$SNAP_CONFIG" ]; then ok "  symlink resolves to a real file ($(wc -c < "$SNAP_CONFIG" | tr -d ' ') bytes)";
@@ -66,11 +76,26 @@ else
     fail "snapshots config.json is not a symlink"
 fi
 
-# ── 3. refs/main holds a 40-char commit sha. ─────────────────────────────────────────────
-if [ "${#COMMIT}" -eq 40 ]; then ok "refs/main = $COMMIT (40 chars)";
-else fail "refs/main is not a 40-char sha (got '${COMMIT}')"; fi
+# ── 3. M1: metadata-only pull must NOT write refs/main (no complete commit advertised). ──
+if [ ! -e "$REPO_DIR/refs/main" ]; then ok "refs/main absent after metadata-only pull (M1)";
+else fail "refs/main was written for a metadata-only --include pull (should be absent)"; fi
 
-# ── 4. CROSS-COMPAT: python huggingface_hub sees the file as CACHED. ─────────────────────
+# ── 4. I3: bare `pf` against this incomplete cache fails closed with `run \`pf pull\``. ───
+# A metadata-only cache (no model.safetensors) must NOT resolve as present. To exercise the
+# resolution path we even hand it a refs/main pointing at the commit — model.safetensors is
+# still missing, so resolveModelDirFromCache must reject it as incomplete and fail closed with
+# the CLEAN message, not an opaque model-load error.
+printf '%s' "$COMMIT" > "$REPO_DIR/refs/main"   # simulate a (wrongly) advertised commit
+echo "I3: bare pf against incomplete snapshot must fail closed…" >&2
+PF_OUT="$(printf 'x\n' | HF_HUB_CACHE="$CACHE" "$BIN" 2>&1 || true)"
+if printf '%s' "$PF_OUT" | grep -q 'run `pf pull`'; then
+    ok "bare pf fails closed with \`run \`pf pull\`\` (incomplete snapshot rejected — I3)"
+else
+    fail "bare pf did NOT fail closed with the clean resolution message (got: ${PF_OUT})"
+fi
+
+# ── 5. CROSS-COMPAT: python huggingface_hub sees the file as CACHED. ─────────────────────
+# refs/main is now present (written above), so python can resolve commit → snapshot.
 echo "cross-compat: asking python huggingface_hub if it sees the cache…" >&2
 HF_STATUS="$(C="$CACHE" uv run --with huggingface_hub python -c \
   "from huggingface_hub import try_to_load_from_cache; import os; \
