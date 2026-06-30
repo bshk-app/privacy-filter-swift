@@ -133,7 +133,7 @@ Homebrew's own terminology: **formula = built from source; cask = pre-compiled b
 and signed by upstream; bottle = Homebrew-CI prebuilt from a source formula.** Policy: "Binary-
 only formulae should go in homebrew/cask." So:
 
-**Phase 1 — formula, build-from-source (ship first, fastest):** in `beshkenadze/tap`.
+**Phase 1 — formula, build-from-source (ship first, fastest):** in `bshk-app/tap`.
 `depends_on xcode: [:build]` (metallib needs full Xcode), `arch: :arm64`, `macos: ">= :sonoma"`.
 `install`: `xcodebuild -scheme pf -configuration Release …`; install `pf` + `default.metallib` +
 dylibs into `libexec`; `bin.install_symlink`. `service do … pf serve …`. caveats: `pf pull`.

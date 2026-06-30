@@ -1,4 +1,4 @@
-# Phase 1 — build-from-source formula for the `beshkenadze/tap` Homebrew tap.
+# Phase 1 — build-from-source formula for the `bshk-app/tap` Homebrew tap.
 #
 # This file is the source of truth; ship it by copying to
 #   homebrew-tap/Formula/pf.rb
@@ -9,12 +9,12 @@
 # DISTRIBUTION: privacy-filter-swift is PUBLIC, so the source-tarball `url` below works
 # once a release is tagged. To ship: push `main`, create a tag `pf-vX.Y.Z`, then fill
 # `url` + `sha256` (`shasum -a 256` of `.../archive/refs/tags/pf-vX.Y.Z.tar.gz`) and copy
-# this file to `Formula/pf.rb` in the beshkenadze/homebrew-tap repo.
+# this file to `Formula/pf.rb` in the bshk-app/homebrew-tap repo.
 
 class Pf < Formula
   desc "On-device PII/secret redactor: stdin-stdout filter plus resident daemon"
-  homepage "https://github.com/beshkenadze/privacy-filter-swift"
-  url "https://github.com/beshkenadze/privacy-filter-swift/archive/refs/tags/pf-v0.1.0.tar.gz"
+  homepage "https://github.com/bshk-app/privacy-filter-swift"
+  url "https://github.com/bshk-app/privacy-filter-swift/archive/refs/tags/pf-v0.1.0.tar.gz"
   sha256 "0" * 64 # TODO: fill at release (`shasum -a 256` of the tagged tarball)
   license "Apache-2.0"
 

@@ -108,7 +108,7 @@ snapshot symlinks resolve, `refs/main`), and `hf download … --local-dir-use-sy
 
 ### Task 6: Homebrew source formula (design §6, Phase 1 track)
 
-**Files:** `Formula/pf.rb` in the `beshkenadze/tap` repo (or a `packaging/` stub here + PR to the tap).
+**Files:** `Formula/pf.rb` in the `bshk-app/tap` repo (or a `packaging/` stub here + PR to the tap).
 
 - `depends_on xcode: [:build]`, `arch: :arm64`, `macos: ">= :sonoma"`; `url` = tagged source tarball.
 - `install`: `xcodebuild -scheme pf -configuration Release …` → install `pf` + `default.metallib` +

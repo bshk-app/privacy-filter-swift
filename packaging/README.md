@@ -6,18 +6,18 @@ signed** by upstream).
 
 ## Phase 1 — source formula (this dir: `homebrew/pf.rb`)
 
-`brew install beshkenadze/tap/pf` → builds from source via `xcodebuild` (MLX's Metal kernels
+`brew install bshk-app/tap/pf` → builds from source via `xcodebuild` (MLX's Metal kernels
 need the full Xcode toolchain; `swift build` can't compile the metallib). Ships the binary +
 `default.metallib` + dylibs into `libexec`, symlinks `bin/pf`, and wires `brew services` to run
 `pf serve`.
 
-**To ship it:** copy `homebrew/pf.rb` to `Formula/pf.rb` in the `beshkenadze/homebrew-tap` repo,
-fill `url`/`sha256` for a tagged source tarball, and `brew install beshkenadze/tap/pf`.
+**To ship it:** copy `homebrew/pf.rb` to `Formula/pf.rb` in the `bshk-app/homebrew-tap` repo,
+fill `url`/`sha256` for a tagged source tarball, and `brew install bshk-app/tap/pf`.
 
 > **Distribution: resolved → the repo is PUBLIC.** The source-tarball `url` works once a release
 > is tagged. Remaining steps to ship: `git push origin main`, create a tag `pf-vX.Y.Z`, fill the
 > formula's `url` + `sha256` (`shasum -a 256` of `…/archive/refs/tags/pf-vX.Y.Z.tar.gz`), and copy
-> `homebrew/pf.rb` to `Formula/pf.rb` in `beshkenadze/homebrew-tap`.
+> `homebrew/pf.rb` to `Formula/pf.rb` in `bshk-app/homebrew-tap`.
 
 ### `brew style` note
 Running `brew style homebrew/pf.rb` **standalone** reports 4 offenses (Sorbet sigils,
@@ -27,7 +27,7 @@ do NOT fire once the file lives in a tap under `Formula/`. The substantive cops 
 
 ## Phase 2 — notarized cask (we have a Developer ID)
 
-`brew install --cask beshkenadze/tap/pf` → downloads a Developer ID-signed + notarized prebuilt,
+`brew install --cask bshk-app/tap/pf` → downloads a Developer ID-signed + notarized prebuilt,
 no build. Outline (a future GitHub Actions job):
 
 1. `xcodebuild` Release on a `macos-14` arm64 runner.
