@@ -18,6 +18,11 @@ public enum FrameError: Error {
 }
 
 /// Encode a request frame: `[len: UInt32 BE][utf8]`.
+///
+/// Precondition: the UTF-8 payload byte count must be `<= defaultMaxFrameSize`.
+/// Unreachable in practice — payloads are single lines of redacted text, far
+/// under 16 MiB. The decode path guards oversize symmetrically; encode documents
+/// the precondition rather than adding a throwing branch (keeps the API non-throwing).
 public func encodeRequest(_ text: String) -> Data {
     let payload = Data(text.utf8)
     var frame = Data(capacity: 4 + payload.count)
@@ -27,6 +32,11 @@ public func encodeRequest(_ text: String) -> Data {
 }
 
 /// Encode a response frame: `[status: UInt8][len: UInt32 BE][utf8]`.
+///
+/// Precondition: the UTF-8 payload byte count must be `<= defaultMaxFrameSize`.
+/// Unreachable in practice — payloads are single lines of redacted text, far
+/// under 16 MiB. The decode path guards oversize symmetrically; encode documents
+/// the precondition rather than adding a throwing branch (keeps the API non-throwing).
 public func encodeResponse(status: UInt8, _ text: String) -> Data {
     let payload = Data(text.utf8)
     var frame = Data(capacity: 5 + payload.count)
@@ -97,6 +107,8 @@ private struct FrameBuffer {
 
         // Re-base to 0 — slices from prior consumes carry a non-zero startIndex.
         let base = bytes.startIndex
+        // Raw status passthrough: the codec does NOT range-validate status (0/1/2);
+        // interpreting/validating it is the daemon/client's job (Serve/agentvault).
         let status: UInt8 = headerExtra == 1 ? bytes[base] : 0
         let lenStart = base + headerExtra
         let length = UInt32(
@@ -111,6 +123,9 @@ private struct FrameBuffer {
 
         let payloadStart = base + headerSize
         let payload = bytes[payloadStart ..< base + total]
+        // Lossy decode (invalid bytes → U+FFFD) is INTENTIONAL: the daemon redacts
+        // whatever text it can rather than dropping a connection; strict rejection
+        // is not the contract.
         let text = String(decoding: payload, as: UTF8.self)
         bytes.removeSubrange(base ..< base + total)
         return (status, text)

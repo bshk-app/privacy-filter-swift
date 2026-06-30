@@ -39,7 +39,7 @@ serve. **serve is byte-identical to spawn**, so existing `pf-parity` / `leak_rat
 - **Transport:** unix socket `~/.pf/pf.sock`, mode `0600` (owner-only; no network exposure).
 - **Frame:** `REQ [len:u32 BE][utf8]` → `RESP [status:u8][len:u32][redacted utf8]`.
   - `status`: `0`=ok, `1`=whole-request failure (client treats as full withhold), `2`=proto/frame-error.
-  - Max frame cap (e.g. 16 MB); oversize → `status 2` (OOM guard).
+  - Max frame cap (e.g. 16 MiB); oversize → `status 2` (OOM guard).
   - **Per-line failures are NOT request failures:** a line that can't be processed emits the
     placeholder INSIDE a `status 0` frame — mirroring one-shot `pf`, which withholds the failing
     line and keeps producing output. `status 1` is reserved for whole-request failures (none in

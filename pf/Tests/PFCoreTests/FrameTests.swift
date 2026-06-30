@@ -104,6 +104,44 @@ final class FrameTests: XCTestCase {
         }
     }
 
+    // --- boundary: length == cap decodes, cap + 1 throws --------------------
+    func test_length_equal_to_cap_decodes_cap_plus_one_throws() throws {
+        // Inject a small cap, then send a payload of EXACTLY `cap` bytes: the
+        // `<= maxFrameSize` guard must admit it (locks the `<=`, not `<`).
+        let cap = 8
+        let atCap = String(repeating: "x", count: cap)
+        var atReader = RequestFrameReader(maxFrameSize: cap)
+        atReader.append(encodeRequest(atCap))
+        XCTAssertEqual(try atReader.next(), atCap)
+
+        // A header declaring `cap + 1` bytes must throw `.oversize`.
+        var bytes = Data()
+        let len = UInt32(cap + 1).bigEndian
+        withUnsafeBytes(of: len) { bytes.append(contentsOf: $0) }
+        var overReader = RequestFrameReader(maxFrameSize: cap)
+        overReader.append(bytes)
+        XCTAssertThrowsError(try overReader.next()) { error in
+            XCTAssertEqual(error as? FrameError, .oversize)
+        }
+    }
+
+    // --- coalesced valid frame then oversize header: first surfaces, then throw
+    func test_coalesced_valid_then_oversize_yields_first_then_throws() throws {
+        let cap = 16
+        var buf = encodeRequest("ok") // a valid frame under the cap
+        // Append an oversize-length header (no payload needed — the guard fires
+        // on the declared length before waiting for body bytes).
+        let len = UInt32(cap + 1).bigEndian
+        withUnsafeBytes(of: len) { buf.append(contentsOf: $0) }
+
+        var reader = RequestFrameReader(maxFrameSize: cap)
+        reader.append(buf)
+        XCTAssertEqual(try reader.next(), "ok") // first frame surfaces before the throw
+        XCTAssertThrowsError(try reader.next()) { error in
+            XCTAssertEqual(error as? FrameError, .oversize)
+        }
+    }
+
     // --- UTF-8 multi-byte round-trips ---------------------------------------
     func test_utf8_multibyte_round_trips() throws {
         let s = "café — 日本語 — 🔒"
