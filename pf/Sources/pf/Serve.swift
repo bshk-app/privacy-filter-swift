@@ -283,33 +283,50 @@ struct Serve: AsyncParsableCommand {
 
     /// Run the full start lifecycle (design §4) under an flock and return the listening fd:
     ///   1. flock ~/.pf/pf.lock (serialize two simultaneous starts; released on exit).
-    ///   2. Probe the existing socket → decideStart({responsive, force}).
-    ///   3. .alreadyRunning → print + exit non-zero. .displace → SIGTERM the pid, wait, reclaim.
-    ///      .reclaim/.bind → unlink any stale socket, bind. EADDRINUSE after unlink: require
-    ///      --force (else error); with --force, displace then retry.
+    ///   2. Probe the existing socket → decideStart({responsive, force}); the same probe attests
+    ///      the socket owner pid (LOCAL_PEERPID) used as the SIGTERM target on displace.
+    ///   3. .alreadyRunning → print + exit non-zero. .displace → SIGTERM the ATTESTED owner, wait;
+    ///      if it's still responding after the timeout, throw (fail-closed — never two daemons).
+    ///      .reclaim → unlink any stale socket, bind. EADDRINUSE after unlink: require --force
+    ///      (else error); with --force, displace the attested owner then retry.
     /// On success the pidfile is written and the lock released. Throws (fail-closed) on any error.
     static func acquireListener(sockPath: String, force: Bool) throws -> Int32 {
         let runtimeDir = try prepareRuntimeDir(for: sockPath)
         let lock = try StartLock(runtimeDir: runtimeDir)
         defer { lock.release() }  // hold the lock across probe→decide→bind, release once bound
 
-        let responsive = socketResponsive(at: sockPath)
+        // Probe once: get BOTH responsiveness (drives decideStart) and the kernel-attested owner
+        // pid (LOCAL_PEERPID) — the authoritative SIGTERM target on displace. The pidfile is NOT
+        // trusted for signalling; it's now purely cosmetic (the human-facing "running (pid N)").
+        let probe = socketProbe(at: sockPath)
+        let responsive = probe.responsive
         switch decideStart(socketResponsive: responsive, force: force) {
         case .alreadyRunning:
-            let pidStr = lock.readPid().map(String.init) ?? "unknown"
+            // Pidfile is cosmetic here — prefer the kernel-attested owner, fall back to the pidfile.
+            let pidStr = (probe.ownerPID ?? lock.readPid()).map(String.init) ?? "unknown"
             logStderr("pf serve: already running (pid \(pidStr)) — pass --force to displace")
             throw ExitCode.failure
 
         case .displace:
-            logStderr("pf serve: --force — displacing live daemon (pid \(lock.readPid().map(String.init) ?? "unknown")) on \(sockPath)")
-            if !displaceDaemon(pid: lock.readPid(), sockPath: sockPath) {
-                logStderr("pf serve: WARNING — daemon still responding after SIGTERM; reclaiming anyway")
+            // Signal the KERNEL-ATTESTED owner (probe.ownerPID), never readPid(): a stale/forged
+            // pidfile must not let us kill an innocent recycled pid (C1) nor let the real daemon
+            // survive while we rebind (I2). The pidfile pid is used only to NAME the daemon.
+            let ownerPID = probe.ownerPID
+            let nameStr = (ownerPID ?? lock.readPid()).map(String.init) ?? "unknown"
+            logStderr("pf serve: --force — displacing live daemon (pid \(nameStr)) on \(sockPath)")
+            if !displaceDaemon(pid: ownerPID, sockPath: sockPath) {
+                // FAIL CLOSED (I2): the old daemon is STILL responding after SIGTERM + timeout.
+                // Unlinking and rebinding now would leave TWO daemons fighting over one socket.
+                // Refuse to bind instead — never end with two daemons on one socket.
+                throw RuntimeError("pf serve: could not displace live daemon (pid \(nameStr)) — still responding")
             }
             fallthrough
 
-        case .reclaim, .bind:
-            // Nobody's answering (stale/crashed or never existed) → unlink any lingering socket
-            // and bind. This self-heals the crashed-daemon case with no --force needed.
+        case .reclaim:
+            // Nobody's answering (stale/crashed or never existed, or we just displaced the owner)
+            // → unlink any lingering socket and bind. Self-heals the crashed-daemon case with no
+            // --force. (decideStart has no separate .bind case — binding from a clean path is the
+            // same unlink-if-present + bind as reclaiming; see StartDecision in LockDecision.swift.)
             if FileManager.default.fileExists(atPath: sockPath) {
                 if responsive {
                     logStderr("pf serve: reclaiming socket \(sockPath)")
@@ -323,11 +340,15 @@ struct Serve: AsyncParsableCommand {
                 fd = try bindOnly(sockPath: sockPath)
             } catch is AddrInUse {
                 // A zombie still holds the path even after unlink. Without --force we must not
-                // guess; with --force, escalate to displace then retry once.
+                // guess; with --force, escalate to displace the attested owner then retry once.
                 guard force else {
                     throw RuntimeError("socket busy and unresponsive — rerun with --force")
                 }
-                _ = displaceDaemon(pid: lock.readPid(), sockPath: sockPath)
+                // Re-probe to re-attest the owner (the path is still bound by someone).
+                let owner = socketProbe(at: sockPath).ownerPID
+                if !displaceDaemon(pid: owner, sockPath: sockPath) {
+                    throw RuntimeError("pf serve: could not displace live daemon (pid \(owner.map(String.init) ?? "unknown")) — still responding")
+                }
                 unlink(sockPath)
                 fd = try bindOnly(sockPath: sockPath)
             }

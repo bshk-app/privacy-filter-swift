@@ -7,8 +7,9 @@
 // what distinguishes a live instance from stale junk.
 
 /// What `pf serve` should do when (re)starting, given a liveness probe of the existing socket.
+/// (There is no separate `.bind` case: binding from a clean path is the same I/O as reclaiming a
+/// stale one — unlink-if-present + bind — so `decideStart` folds both into `.reclaim`.)
 public enum StartDecision: Equatable {
-    case bind            // unreachable in practice from decideStart (folded into .reclaim); kept for clarity/future
     case alreadyRunning  // a live daemon answered and no --force → refuse (exit non-zero)
     case displace        // a live daemon answered and --force → SIGTERM it, then take over
     case reclaim         // socket silent (stale) OR absent → unlink-if-present + bind (self-heal)

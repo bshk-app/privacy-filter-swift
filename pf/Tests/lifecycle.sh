@@ -9,6 +9,10 @@
 #                        no manual cleanup (this is the crashed-instance self-heal).
 #   3. --force displace: daemon D is live; starting E with --force on the same sock SIGTERMs D
 #                        and takes over — E serves (the guaranteed hammer).
+#   4. corrupt pidfile : daemon F is live but pf.pid is poisoned with a bogus-but-live foreign pid;
+#                        --force must displace the KERNEL-ATTESTED owner (LOCAL_PEERPID) F WITHOUT
+#                        killing the innocent foreign process (proves the pidfile isn't trusted for
+#                        signalling — C1/I2 regression guard).
 #
 # Builds the product once via xcodebuild, then drives daemons with a tiny python3 frame client
 # (python is fine for a dev harness — NOT in the shipped path). Prints LIFECYCLE OK / LIFECYCLE
@@ -24,6 +28,7 @@ CONFIG="${CONFIG:-Debug}"
 DERIVED="$PWD/.build/xcode"
 BIN="$DERIVED/Build/Products/$CONFIG/pf"
 SOCK="/tmp/pf-life-$$.sock"
+PIDFILE="$(dirname "$SOCK")/pf.pid"   # pf writes <sockdir>/pf.pid (see Serve.swift acquireListener)
 LOGDIR="$PWD/.build"
 mkdir -p "$LOGDIR"
 
@@ -36,7 +41,8 @@ xcodebuild -scheme pf -destination 'platform=macOS' \
 
 fails=0
 PIDS=()
-trap 'for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done; kill -9 "${PIDS[@]:-}" 2>/dev/null; rm -f "$SOCK"' EXIT
+SLEEP_PID=""   # a harmless foreign process whose pid we plant into the pidfile (case 4)
+trap 'for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done; kill -9 "${PIDS[@]:-}" 2>/dev/null; [ -n "$SLEEP_PID" ] && kill "$SLEEP_PID" 2>/dev/null; rm -f "$SOCK" "$PIDFILE"' EXIT
 
 # ── python3 one-shot frame client: send text, return redacted body (or "ERR" on failure). ─────
 read -r -d '' CLIENT <<'PY'
@@ -140,6 +146,56 @@ else
     sed 's/^/        /' "$LOGDIR/pf-life-E.log"; fails=$((fails+1))
 fi
 PIDS=("$E_PID")   # only E should remain; trap cleans it up
+
+# ── Case 4: corrupt-pidfile — --force must displace the KERNEL-ATTESTED owner, not the pidfile. ─
+# Regression for C1/I2: --force used to SIGTERM the pid read from pf.pid. If that pid is stale and
+# the OS recycled it onto an innocent process, --force killed the wrong process (C1) while the real
+# daemon survived → two daemons (I2). We now signal the LOCAL_PEERPID owner, so a poisoned pidfile
+# must NOT cause a foreign kill, AND the real daemon must still be displaced.
+echo "── case 4: corrupt pidfile (LOCAL_PEERPID is authoritative) ──" >&2
+# F = the currently-live daemon (E from case 3). Confirm it's live.
+F_PID="$E_PID"
+if [ -n "$F_PID" ] && kill -0 "$F_PID" 2>/dev/null && serves; then
+    echo "  ok   : daemon F live before corrupt-pidfile displace (pid $F_PID)"
+else
+    echo "  FAIL: no live daemon F to displace"; fails=$((fails+1))
+fi
+
+# Spawn a harmless long-lived foreign process and poison the pidfile with ITS pid. If --force
+# trusted the pidfile it would SIGTERM this innocent process; LOCAL_PEERPID must ignore it.
+sleep 600 &
+SLEEP_PID=$!
+echo "  info : planted foreign pid $SLEEP_PID (a live 'sleep 600') into $PIDFILE" >&2
+if ! kill -0 "$SLEEP_PID" 2>/dev/null; then echo "  FAIL: foreign sleep process didn't start"; fails=$((fails+1)); fi
+printf '%s\n' "$SLEEP_PID" > "$PIDFILE"   # corrupt the pidfile: bogus-but-live pid (NOT the daemon)
+echo "  info : pidfile now reads '$(cat "$PIDFILE")' (daemon F is actually pid $F_PID)" >&2
+
+# Now --force on the same socket. It must SIGTERM the attested owner (F), not the pidfile pid.
+"$BIN" serve --model "$PF_MODEL" --sock "$SOCK" --force >"$LOGDIR/pf-life-G.log" 2>&1 &
+G_PID=$!
+displaced4=0
+for _ in $(seq 1 120); do                        # up to ~60s: wait for F to die AND G to serve
+    kill -0 "$G_PID" 2>/dev/null || break        # G exited before taking over → fail below
+    if ! kill -0 "$F_PID" 2>/dev/null && serves; then displaced4=1; break; fi
+    sleep 0.5
+done
+
+# (a) The foreign process must SURVIVE — proves the pidfile pid was NOT signalled.
+if kill -0 "$SLEEP_PID" 2>/dev/null; then
+    echo "  ok   : foreign pid $SLEEP_PID SURVIVED (pidfile pid was NOT killed — LOCAL_PEERPID authoritative)"
+else
+    echo "  FAIL: foreign pid $SLEEP_PID was killed — --force trusted the pidfile (C1 regression)"; fails=$((fails+1))
+fi
+# (b) The real daemon F must be displaced and G must serve.
+if [ "$displaced4" -eq 1 ] && [ "$G_PID" != "$F_PID" ]; then
+    echo "  ok   : daemon G displaced the REAL owner F and serves (G=$G_PID, old F=$F_PID terminated)"
+else
+    echo "  FAIL: --force did not displace the real daemon (G=$G_PID up=$(kill -0 "$G_PID" 2>/dev/null && echo y || echo n), F=$F_PID alive=$(kill -0 "$F_PID" 2>/dev/null && echo y || echo n))"
+    sed 's/^/        /' "$LOGDIR/pf-life-G.log"; fails=$((fails+1))
+fi
+# Tidy the planted foreign process now (trap also covers it).
+[ -n "$SLEEP_PID" ] && kill "$SLEEP_PID" 2>/dev/null; SLEEP_PID=""
+PIDS=("$G_PID")   # only G should remain; trap cleans it up
 
 echo "---"
 if [ "$fails" -eq 0 ]; then
